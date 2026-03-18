@@ -147,10 +147,9 @@ cd library-management-system\backend
 ```
 Remove-Item .\dev.db 
 ```
+如果提示文件不存在，可以忽略。
 
-3. 如果提示文件不存在，可以忽略。
-
-根据当前 schema.prisma 重新生成 SQLite 数据库结构
+3. 根据当前 schema.prisma 重新生成 SQLite 数据库结构
 
 ```
 .\node_modules\.bin\prisma.cmd db push --schema .\prisma\schema.prisma 
