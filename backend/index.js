@@ -1,17 +1,7 @@
-const express = require("express");
-const cors = require("cors");
+const app = require("./server/app");
 
-const app = express();
+const PORT = Number(process.env.PORT || 3001);
 
-app.use(cors());
-app.use(express.json());
-
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", message: "Library API is running" });
-});
-
-const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-

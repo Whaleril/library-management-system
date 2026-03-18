@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../generated/prisma"
 }
 
@@ -16,9 +16,30 @@ enum Role {
   ADMIN
 }
 
+enum Genre {
+  Technology
+  Fiction
+  Science
+  History
+  Management
+}
+
+enum BookLanguage {
+  Chinese
+  English
+  Others
+}
+
+enum LoanStatus {
+  Borrowing
+  Returned
+  Overdue
+}
+
 enum HoldStatus {
   WAITING
   READY
+  FULFILLED
   CANCELLED
 }
 
@@ -35,6 +56,7 @@ model User {
   ratings   Rating[]
   holds     Hold[]
   wishlists Wishlist[]
+  acquisitionRequests AcquisitionRequest[]
   auditLogs AuditLog[]
 
   @@index([role])
@@ -46,11 +68,13 @@ model Book {
   title         String
   author        String
   isbn          String     @unique
-  genre         String?
+  genre         Genre
+  cover         String?
   description   String?
-  language      String?
+  language      BookLanguage
   shelfLocation String?
   available     Boolean    @default(true)
+  availableCopies Int      @default(1)
   createdAt     DateTime   @default(now())
 
   loans     Loan[]
@@ -73,6 +97,8 @@ model Loan {
   fineAmount   Decimal  @default(0)
   finePaid     Boolean  @default(false)
   fineForgiven Boolean  @default(false)
+  renewalCount Int      @default(0)
+  status       LoanStatus @default(Borrowing)
   createdAt    DateTime @default(now())
 
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
@@ -122,6 +148,7 @@ model Wishlist {
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, bookId])
   @@index([bookId])
   @@index([userId])
 }
@@ -146,4 +173,25 @@ model AuditLog {
   @@index([userId])
   @@index([entity])
   @@index([createdAt])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model AcquisitionRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  author    String
+  isbn      String?
+  reason    String?
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

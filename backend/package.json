@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
+    "test": "node tests/reader-release1.smoke.js",
+    "dev": "nodemon index.js",
+    "start": "node index.js",
     "studio": "prisma studio --port 5555"
   },
   "keywords": [],
