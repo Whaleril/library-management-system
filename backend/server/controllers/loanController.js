@@ -18,8 +18,24 @@ async function createLoan(req, res, next) {
     next(error);
   }
 }
+async function getHistoryLoans(req, res, next) {
+  try {
+    const { page = 1, size = 10 } = req.query;
+    const pageNum = parseInt(page, 10);
+    const pageSize = parseInt(size, 10);
+    const data = await loanService.getHistoryLoans(
+        req.currentUser.id,
+        pageNum,
+        pageSize
+    );
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
 
 module.exports = {
   getCurrentLoans,
   createLoan,
+  getHistoryLoans,
 };
