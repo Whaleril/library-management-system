@@ -21,14 +21,15 @@ function Login({ onLogin }) {
         body: JSON.stringify({ userName, password }),
       });
 
+      const response = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data?.message || 'Login failed');
+        throw new Error(response.message || 'Login failed');
       }
 
-      const data = await res.json();
-      onLogin(data); // 保存 token 和用户信息
-      navigate('/home'); // 登录成功跳转首页
+      // 后端返回格式: { code: 200, message: "登录成功", data: { token, userId, userName, role } }
+      onLogin(response.data); // ✅ 传递 response.data
+      navigate('/home');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -70,11 +71,28 @@ function Login({ onLogin }) {
 function Home({ userInfo, onLogout }) {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    onLogout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // 调用后端退出接口
+        await fetch('http://localhost:3000/api/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // 无论后端接口是否成功，都清除本地数据
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      onLogout();
+      navigate('/login');
+    }
   };
 
   if (!userInfo) {
@@ -98,9 +116,17 @@ function App() {
 
   const handleLogin = (data) => {
     setToken(data.token);
-    setUserInfo({ userId: data.userId, userName: data.userName, role: data.role });
+    setUserInfo({ 
+      userId: data.userId, 
+      userName: data.userName, 
+      role: data.role 
+    });
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify({ userId: data.userId, userName: data.userName, role: data.role }));
+    localStorage.setItem('user', JSON.stringify({ 
+      userId: data.userId, 
+      userName: data.userName, 
+      role: data.role 
+    }));
   };
 
   const handleLogout = () => {
