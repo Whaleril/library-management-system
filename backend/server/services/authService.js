@@ -99,9 +99,73 @@ async function logout(token) {
   revokeToken(token);
 }
 
+function generateRandomPassword(length = 8) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+async function generateTempPassword(email) {
+  if (!email) {
+    throw new AppError(400, "参数错误");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    throw new AppError(404, "用户不存在");
+  }
+
+  const tempPassword = generateRandomPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash },
+  });
+
+  return {
+    email: user.email,
+    tempPassword,
+  };
+}
+
+async function resetPassword(userId, newPassword) {
+  if (!userId || !newPassword) {
+    throw new AppError(400, "参数错误");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(404, "用户不存在");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash },
+  });
+
+  return {
+    userId: user.id,
+    email: user.email,
+  };
+}
+
 module.exports = {
   register,
   login,
   logout,
+  generateTempPassword,
+  resetPassword,
   toUserProfile,
 };
