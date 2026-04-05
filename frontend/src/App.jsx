@@ -15,7 +15,7 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:3000/api/login', {
+      const res = await fetch('http://localhost:3001/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, password }),
@@ -76,7 +76,7 @@ function Home({ userInfo, onLogout }) {
       const token = localStorage.getItem('token');
       if (token) {
         // 调用后端退出接口
-        await fetch('http://localhost:3000/api/logout', {
+        await fetch('http://localhost:3001/api/logout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
