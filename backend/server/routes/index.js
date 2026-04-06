@@ -8,10 +8,12 @@ const userRoutes = require("./userRoutes");
 const wishlistRoutes = require("./wishlistRoutes");
 const ratingRoutes = require("./ratingRoutes");  // 评分路由
 const adminUserRoutes = require("./adminUserRoutes");
+const adminRoutes = require("./adminRoutes");
 
 const router = express.Router();
 
 router.use(authRoutes);
+router.use("/admin", adminRoutes);
 router.use(bookRoutes);
 router.use(holdRoutes);
 router.use(loanRoutes);
