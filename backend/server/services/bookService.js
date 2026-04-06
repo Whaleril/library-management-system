@@ -246,7 +246,7 @@ async function getBooksWithFilters(query) {
   };
 }
 
-// 获取新书通报
+// 获取新书通报（1个月内上架的新书）
 async function getNewBooks(query) {
   const page = Number(query.page || 1);
   const size = Number(query.size || 10);
@@ -256,10 +256,20 @@ async function getNewBooks(query) {
   }
   
   const skip = (page - 1) * size;
+
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  
+  const where = {
+    createdAt: {
+      gte: oneMonthAgo
+    }
+  };
   
   const [total, books] = await Promise.all([
-    prisma.book.count(),
+    prisma.book.count({ where }),
     prisma.book.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: size
