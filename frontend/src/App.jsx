@@ -15,8 +15,6 @@ const emptyForm = {
   description: "",
 };
 
-const API_BASE = '/api'
-
 function App() {
   const [loginForm, setLoginForm] = useState({ userName: "", password: "" });
   const [token, setToken] = useState("");
