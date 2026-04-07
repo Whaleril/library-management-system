@@ -3,6 +3,17 @@ const { formatDateTime } = require("../utils/date");
 const { AppError } = require("../lib/errors");
 const bcrypt = require("bcrypt"); // 记得确认项目 package.json 里有没有 bcrypt，没有需 npm install bcrypt
 
+function parsePagination(query) {
+  const page = Number(query.page || 1);
+  const size = Number(query.size || 10);
+
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1) {
+    throw new AppError(400, "参数错误");
+  }
+
+  return { page, size };
+}
+
 // DTO 转换：按照设计文档返回规范的 LibrarianDTO 格式
 const toLibrarianDTO = (user) => {
   return {
@@ -56,6 +67,53 @@ async function createLibrarian(operatorId, payload) {
   return toLibrarianDTO(newUser);
 }
 
+async function listLibrarians(query) {
+  const { page, size } = parsePagination(query || {});
+  const keyword = typeof query?.keyword === "string" ? query.keyword.trim() : "";
+
+  const where = {
+    role: "LIBRARIAN",
+    ...(keyword
+      ? {
+          OR: [
+            { name: { contains: keyword } },
+            { email: { contains: keyword } },
+            { studentId: { contains: keyword } },
+          ],
+        }
+      : {}),
+  };
+
+  const [total, users] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      skip: (page - 1) * size,
+      take: size,
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  return {
+    total,
+    page,
+    size,
+    list: users.map(toLibrarianDTO),
+  };
+}
+
+async function getLibrarianDetail(librarianId) {
+  const librarian = await prisma.user.findUnique({
+    where: { id: librarianId },
+  });
+
+  if (!librarian || librarian.role !== "LIBRARIAN") {
+    throw new AppError(404, "目标资源不存在");
+  }
+
+  return toLibrarianDTO(librarian);
+}
+
 async function updateLibrarian(operatorId, librarianId, payload) {
   const { name, email, staffId } = payload;
 
@@ -102,6 +160,22 @@ async function updateLibrarian(operatorId, librarianId, payload) {
   });
 
   return toLibrarianDTO(updatedUser);
+}
+
+async function deleteLibrarian(operatorId, librarianId) {
+  const librarian = await prisma.user.findUnique({
+    where: { id: librarianId },
+  });
+
+  if (!librarian || librarian.role !== "LIBRARIAN") {
+    throw new AppError(404, "目标资源不存在");
+  }
+
+  await prisma.user.delete({
+    where: { id: librarianId },
+  });
+
+  return null;
 }
 
 function generateRandomPassword(length = 8) {
@@ -173,6 +247,9 @@ async function resetUserPassword(operatorId, targetUserId, payload) {
 
 module.exports = {
   createLibrarian,
+  listLibrarians,
+  getLibrarianDetail,
   updateLibrarian,
+  deleteLibrarian,
   resetUserPassword,
 };

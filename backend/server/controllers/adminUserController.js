@@ -27,6 +27,24 @@ async function createLibrarian(req, res, next) {
   }
 }
 
+async function listLibrarians(req, res, next) {
+  try {
+    const data = await adminUserService.listLibrarians(req.query || {});
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getLibrarianDetail(req, res, next) {
+  try {
+    const data = await adminUserService.getLibrarianDetail(req.params.id);
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function updateLibrarian(req, res, next) {
   try {
     const operatorId = req.currentUser ? req.currentUser.id : null;
@@ -40,8 +58,23 @@ async function updateLibrarian(req, res, next) {
   }
 }
 
+async function deleteLibrarian(req, res, next) {
+  try {
+    const operatorId = req.currentUser ? req.currentUser.id : null;
+    const librarianId = req.params.id;
+
+    const data = await adminUserService.deleteLibrarian(operatorId, librarianId);
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createLibrarian,
+  listLibrarians,
+  getLibrarianDetail,
   updateLibrarian,
+  deleteLibrarian,
   resetUserPassword,
 };
