@@ -43,6 +43,7 @@ function toBookSummary(book, ratingMap) {
     cover: book.cover,
     available: book.available,
     availableCopies: book.availableCopies,
+    totalCopies: book.totalCopies,
     createdAt: formatDateTime(book.createdAt),
     ...(ratingMap.has(book.id) ? { averageRating: ratingMap.get(book.id) } : {}),
   };
@@ -52,8 +53,9 @@ async function listBooks(query) {
   const { page, size } = parsePagination(query || {});
 
   const [total, books] = await prisma.$transaction([
-    prisma.book.count(),
+    prisma.book.count({ where: { isArchived: false } }),
     prisma.book.findMany({
+      where: { isArchived: false },
       skip: (page - 1) * size,
       take: size,
       orderBy: { createdAt: "desc" },
@@ -90,6 +92,7 @@ async function searchBooks(query) {
         : [{ title: { contains: keyword } }, { author: { contains: keyword } }];
 
   const where = {
+    isArchived: false,
     OR: searchConditions,
   };
 
@@ -118,7 +121,7 @@ async function getBookDetail(bookId) {
     where: { id: bookId },
   });
 
-  if (!book) {
+  if (!book || book.isArchived) {
     throw new AppError(404, "图书不存在");
   }
 
@@ -141,6 +144,7 @@ async function getBookDetail(bookId) {
     shelfLocation: book.shelfLocation,
     available: book.available,
     availableCopies: book.availableCopies,
+    totalCopies: book.totalCopies,
     createdAt: formatDateTime(book.createdAt),
     averageRating: average._avg.stars === null ? null : Number(average._avg.stars.toFixed(1)),
   };
@@ -158,7 +162,7 @@ async function getBooksWithFilters(query) {
   const skip = (page - 1) * size;
   
   // 构建筛选条件
-  let where = {};
+  let where = { isArchived: false };
   
   // 关键词搜索（书名或作者）
   if (query.keyword && typeof query.keyword === 'string') {
@@ -223,6 +227,7 @@ async function getBooksWithFilters(query) {
     shelfLocation: book.shelfLocation,
     available: book.available,
     availableCopies: book.availableCopies,
+    totalCopies: book.totalCopies,
     createdAt: formatDateTime(book.createdAt),
     averageRating: ratingMap.get(book.id) || null
   }));
@@ -258,8 +263,9 @@ async function getNewBooks(query) {
   const skip = (page - 1) * size;
   
   const [total, books] = await Promise.all([
-    prisma.book.count(),
+    prisma.book.count({ where: { isArchived: false } }),
     prisma.book.findMany({
+      where: { isArchived: false },
       orderBy: { createdAt: 'desc' },
       skip,
       take: size
@@ -308,7 +314,10 @@ async function getRanking(query) {
   // 获取图书详情
   const bookIds = rankings.map(r => r.bookId);
   const books = await prisma.book.findMany({
-    where: { id: { in: bookIds } },
+    where: {
+      id: { in: bookIds },
+      isArchived: false,
+    },
     select: { id: true, title: true, author: true }
   });
   
