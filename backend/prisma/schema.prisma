@@ -75,6 +75,10 @@ model Book {
   shelfLocation String?
   available     Boolean    @default(true)
   availableCopies Int      @default(1)
+  totalCopies   Int        @default(1)
+  isArchived    Boolean    @default(false)
+  archivedAt    DateTime?
+  updatedAt     DateTime   @updatedAt
   createdAt     DateTime   @default(now())
 
   loans     Loan[]
@@ -85,6 +89,7 @@ model Book {
   @@index([title])
   @@index([author])
   @@index([available])
+  @@index([isArchived])
 }
 
 model Loan {
