@@ -287,11 +287,11 @@ async function main() {
   assert.equal(fineBorrowResult.response.status, 200);
   const fineLoanId = fineBorrowResult.body.data.loanId;
 
-  const overdueDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const fineLoanOverdueDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
   await prisma.loan.update({
     where: { id: fineLoanId },
     data: {
-      dueDate: overdueDate,
+      dueDate: fineLoanOverdueDate,
     },
   });
 
