@@ -276,65 +276,10 @@ async function getNewBooks(query) {
   };
 }
 
-// 获取借阅排行榜
-async function getRanking(query) {
-  const period = query.period || 'month';
-  const limit = Number(query.limit) || 10;
-  
-  // 计算时间范围
-  const now = new Date();
-  let startDate;
-  if (period === 'week') {
-    startDate = new Date(now.setDate(now.getDate() - 7));
-  } else {
-    startDate = new Date(now.setMonth(now.getMonth() - 1));
-  }
-  
-  // 查询借阅记录并统计
-  const rankings = await prisma.loan.groupBy({
-    by: ['bookId'],
-    where: {
-      checkoutDate: { gte: startDate }
-    },
-    _count: { id: true },
-    orderBy: { _count: { id: 'desc' } },
-    take: limit
-  });
-  
-  if (rankings.length === 0) {
-    return { list: [] };
-  }
-  
-  // 获取图书详情
-  const bookIds = rankings.map(r => r.bookId);
-  const books = await prisma.book.findMany({
-    where: { id: { in: bookIds } },
-    select: { id: true, title: true, author: true }
-  });
-  
-  const bookMap = {};
-  books.forEach(book => {
-    bookMap[book.id] = book;
-  });
-  
-  const list = rankings.map((ranking, index) => ({
-    bookId: ranking.bookId,
-    bookTitle: bookMap[ranking.bookId]?.title || '未知',
-    bookAuthor: bookMap[ranking.bookId]?.author || '未知',
-    loanCount: ranking._count.id,
-    rank: index + 1
-  }));
-  
-  return { list };
-}
-
-// 导出原有函数 + 新增函数
 module.exports = {
   listBooks,
   searchBooks,
   getBookDetail,
   getBooksWithFilters,  
   getNewBooks,          
-  getRanking            
 };
-
