@@ -1,4 +1,4 @@
-function sendSuccess(res, data = null, message = "操作成功", code = 200) {
+function sendSuccess(res, data = null, message = "Operation successful", code = 200) {
   return res.status(code).json({
     code,
     message,
@@ -9,7 +9,7 @@ function sendSuccess(res, data = null, message = "操作成功", code = 200) {
 function sendError(res, error) {
   return res.status(error.code || 500).json({
     code: error.code || 500,
-    message: error.message || "服务器内部错误",
+    message: error.message || "Internal server error",
     data: null,
   });
 }

@@ -5,7 +5,7 @@ const { sendSuccess } = require("../lib/response");
 async function createHold(req, res, next) {
     try {
         const data = await holdService.createHold(req.currentUser.id, req.body.bookId);
-        sendSuccess(res, data, "预约成功");
+        sendSuccess(res, data, "Reservation successful");
     } catch (error) {
         next(error);
     }
@@ -23,7 +23,7 @@ async function getHolds(req, res, next) {
             size || 10
         );
 
-        sendSuccess(res, data, "操作成功");
+        sendSuccess(res, data, "Operation successful");
     } catch (error) {
         next(error);
     }
@@ -36,7 +36,7 @@ async function cancelHold(req, res, next) {
 
         await holdService.cancelHold(req.currentUser.id, holdId);
 
-        sendSuccess(res, null, "已取消预约");
+        sendSuccess(res, null, "Reservation cancelled");
     } catch (error) {
         next(error);
     }

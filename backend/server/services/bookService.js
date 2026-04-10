@@ -7,7 +7,7 @@ function parsePagination(query) {
   const size = Number(query.size || 10);
 
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   return { page, size };
@@ -75,11 +75,11 @@ async function searchBooks(query) {
   const { page, size } = parsePagination(query || {});
 
   if (!keyword || typeof keyword !== "string") {
-    throw new AppError(400, "缺少 keyword 或参数错误");
+    throw new AppError(400, "Missing keyword or invalid parameters");
   }
 
   if (type && !["title", "author"].includes(type)) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   const searchConditions =
@@ -119,7 +119,7 @@ async function getBookDetail(bookId) {
   });
 
   if (!book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
   const average = await prisma.rating.aggregate({
@@ -146,21 +146,21 @@ async function getBookDetail(bookId) {
   };
 }
 
-//新增获取图书列表，支持筛选排序分页
+// Added book list retrieval with filtering, sorting, and pagination.
 async function getBooksWithFilters(query) {
   const page = Number(query.page || 1);
   const size = Number(query.size || 10);
   
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
   
   const skip = (page - 1) * size;
   
-  // 构建筛选条件
+  // Build filter conditions.
   let where = {};
   
-  // 关键词搜索（书名或作者）
+  // Keyword search (title or author).
   if (query.keyword && typeof query.keyword === 'string') {
     where.OR = [
       { title: { contains: query.keyword } },
@@ -168,22 +168,22 @@ async function getBooksWithFilters(query) {
     ];
   }
   
-  // 分类筛选
+  // Genre filter.
   if (query.genre) {
     where.genre = query.genre;
   }
   
-  // 语言筛选
+  // Language filter.
   if (query.language) {
     where.language = query.language;
   }
   
-  // 是否可借筛选
+  // Availability filter.
   if (query.available !== undefined) {
     where.available = query.available === 'true';
   }
   
-  // 获取总数和图书列表
+  // Get total count and book list.
   const [total, books] = await Promise.all([
     prisma.book.count({ where }),
     prisma.book.findMany({
@@ -191,12 +191,12 @@ async function getBooksWithFilters(query) {
       skip,
       take: size,
       include: {
-        ratings: true  // 包含评分用于计算平均分
+        ratings: true  // Include ratings to calculate average score.
       }
     })
   ]);
   
-  // 获取平均评分（如果books为空则直接返回）
+  // Get average rating (return directly if books is empty).
   let ratingMap = new Map();
   if (books.length > 0) {
     const bookIds = books.map(b => b.id);
@@ -210,7 +210,7 @@ async function getBooksWithFilters(query) {
     );
   }
   
-  // 格式化列表
+  // Format list.
   let list = books.map(book => ({
     id: book.id,
     title: book.title,
@@ -227,7 +227,7 @@ async function getBooksWithFilters(query) {
     averageRating: ratingMap.get(book.id) || null
   }));
   
-  // 排序处理（在内存中排序，因为评分是计算出来的）
+  // Handle sorting in memory because ratings are computed.
   const sortBy = query.sortBy;
   const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
   
@@ -236,7 +236,7 @@ async function getBooksWithFilters(query) {
   } else if (sortBy === 'createdAt') {
     list.sort((a, b) => sortOrder * (new Date(a.createdAt) - new Date(b.createdAt)));
   }
-  // 如果没有指定排序，保持默认（已在数据库按创建时间倒序）
+  // If no sorting is specified, keep the default order (already sorted by creation time descending in the database).
   
   return {
     total,
@@ -246,13 +246,13 @@ async function getBooksWithFilters(query) {
   };
 }
 
-// 获取新书通报
+// Get new books announcement.
 async function getNewBooks(query) {
   const page = Number(query.page || 1);
   const size = Number(query.size || 10);
   
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
   
   const skip = (page - 1) * size;
@@ -276,12 +276,12 @@ async function getNewBooks(query) {
   };
 }
 
-// 获取借阅排行榜
+// Get loan ranking.
 async function getRanking(query) {
   const period = query.period || 'month';
   const limit = Number(query.limit) || 10;
   
-  // 计算时间范围
+  // Calculate time range.
   const now = new Date();
   let startDate;
   if (period === 'week') {
@@ -290,7 +290,7 @@ async function getRanking(query) {
     startDate = new Date(now.setMonth(now.getMonth() - 1));
   }
   
-  // 查询借阅记录并统计
+  // Query loan records and aggregate.
   const rankings = await prisma.loan.groupBy({
     by: ['bookId'],
     where: {
@@ -305,7 +305,7 @@ async function getRanking(query) {
     return { list: [] };
   }
   
-  // 获取图书详情
+  // Get book details.
   const bookIds = rankings.map(r => r.bookId);
   const books = await prisma.book.findMany({
     where: { id: { in: bookIds } },
@@ -319,8 +319,8 @@ async function getRanking(query) {
   
   const list = rankings.map((ranking, index) => ({
     bookId: ranking.bookId,
-    bookTitle: bookMap[ranking.bookId]?.title || '未知',
-    bookAuthor: bookMap[ranking.bookId]?.author || '未知',
+    bookTitle: bookMap[ranking.bookId]?.title || 'Unknown',
+    bookAuthor: bookMap[ranking.bookId]?.author || 'Unknown',
     loanCount: ranking._count.id,
     rank: index + 1
   }));
@@ -328,7 +328,7 @@ async function getRanking(query) {
   return { list };
 }
 
-// 导出原有函数 + 新增函数
+// Export original functions plus newly added functions.
 module.exports = {
   listBooks,
   searchBooks,
