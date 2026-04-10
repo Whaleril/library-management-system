@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell *)",
+      "Bash(python *)",
+      "Bash(npm run *)",
+      "Bash(taskkill *)",
+      "Bash(timeout *)",
+      "Bash(curl *)",
+      "Bash(select-string *)",
+      "Bash(select-object *)",
+      "Bash(start *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(findstr *)",
+      "Bash(start.bat)",
+      "WebFetch(localhost)",
+      "Bash(netstat *)",
+      "Bash(tasklist)"
+    ]
+  },
+  "$version": 3
+}
