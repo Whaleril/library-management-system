@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import ReaderDashboard from './components/reader/ReaderDashboard'
+import LibrarianDashboard from './components/librarian/LibrarianDashboard'
 import LoginPage from './components/auth/LoginPage'
 
 const API_BASE = '/api'
@@ -113,73 +114,90 @@ function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
   }
 
-  // Currently only implementing STUDENT role Release 1 features
-  if (user.role !== 'STUDENT') {
+  // STUDENT role - Reader features
+  if (user.role === 'STUDENT') {
     return (
       <div className="dashboard-container">
-        <div className="content">
-          <div className="page-header">
-            <h2>Feature Under Development</h2>
-            <p>Only Student Release 1 features are currently available</p>
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <nav className="sidebar-menu">
+            <div className="menu-item-header">📚 Library System</div>
+            <div className={`menu-item ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentPage('dashboard')}>
+              <span className="icon">🏠</span>
+              <span>Home</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'books' ? 'active' : ''}`} onClick={() => setCurrentPage('books')}>
+              <span className="icon">📖</span>
+              <span>Books</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'loans' ? 'active' : ''}`} onClick={() => setCurrentPage('loans')}>
+              <span className="icon">📋</span>
+              <span>My Loans</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`} onClick={() => setCurrentPage('profile')}>
+              <span className="icon">👤</span>
+              <span>My Profile</span>
+            </div>
+          </nav>
+          <div className="user-info">
+            <div className="user-avatar">{user.name[0].toUpperCase()}</div>
+            <div className="user-details">
+              <div className="user-name">{user.name}</div>
+              <div className="user-role">{getRoleName(user.role)}</div>
+            </div>
           </div>
-          <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '20px' }}>Logout</button>
-        </div>
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        </aside>
+
+        {/* Main Content */}
+        <main className="main-content">
+          <header className="top-nav">
+            <span className="breadcrumb">Home / {getPageName(currentPage)}</span>
+            <div className="top-user">
+              <span className="top-user-name">{user.name}</span>
+              <span className="role-badge">{getRoleName(user.role)}</span>
+            </div>
+          </header>
+          <ReaderDashboard
+            user={user}
+            stats={stats}
+            books={books}
+            loans={loans}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            onRefreshStats={fetchStats}
+          />
+        </main>
       </div>
     )
   }
 
+  // LIBRARIAN and ADMIN roles
+  if (user.role === 'LIBRARIAN' || user.role === 'ADMIN') {
+    return (
+      <LibrarianDashboard
+        user={user}
+        stats={stats}
+        books={books}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        handleLogout={handleLogout}
+        getRoleName={getRoleName}
+        getPageName={getPageName}
+      />
+    )
+  }
+
+  // Other roles - show under development message
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <nav className="sidebar-menu">
-          <div className="menu-item-header">📚 Library System</div>
-          <div className={`menu-item ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentPage('dashboard')}>
-            <span className="icon">🏠</span>
-            <span>Home</span>
-          </div>
-          <div className={`menu-item ${currentPage === 'books' ? 'active' : ''}`} onClick={() => setCurrentPage('books')}>
-            <span className="icon">📖</span>
-            <span>Books</span>
-          </div>
-          <div className={`menu-item ${currentPage === 'loans' ? 'active' : ''}`} onClick={() => setCurrentPage('loans')}>
-            <span className="icon">📋</span>
-            <span>My Loans</span>
-          </div>
-          <div className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`} onClick={() => setCurrentPage('profile')}>
-            <span className="icon">👤</span>
-            <span>My Profile</span>
-          </div>
-        </nav>
-        <div className="user-info">
-          <div className="user-avatar">{user.name[0].toUpperCase()}</div>
-          <div className="user-details">
-            <div className="user-name">{user.name}</div>
-            <div className="user-role">{getRoleName(user.role)}</div>
-          </div>
+      <div className="content">
+        <div className="page-header">
+          <h2>Feature Under Development</h2>
+          <p>This feature is not yet available for your role</p>
         </div>
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
-      </aside>
-
-      {/* Main Content */}
-      <main className="main-content">
-        <header className="top-nav">
-          <span className="breadcrumb">Home / {getPageName(currentPage)}</span>
-          <div className="top-user">
-            <span className="top-user-name">{user.name}</span>
-            <span className="role-badge">{getRoleName(user.role)}</span>
-          </div>
-        </header>
-        <ReaderDashboard
-          user={user}
-          stats={stats}
-          books={books}
-          loans={loans}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onRefreshStats={fetchStats}
-        />
-      </main>
+        <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '20px' }}>Logout</button>
+      </div>
     </div>
   )
 }
