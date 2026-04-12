@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import ReaderDashboard from './components/reader/ReaderDashboard'
 import LibrarianDashboard from './components/librarian/LibrarianDashboard'
-import AdminDashboard from './components/admin/AdminDashboard'
+import AdminModule from './components/admin'
 
 const API_BASE = '/api'
 
@@ -25,7 +25,7 @@ function App() {
   const [loans, setLoans] = useState([])
 
   // 获取统计数据
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const token = localStorage.getItem('token')
       const [booksRes, loansRes] = await Promise.all([
@@ -42,6 +42,7 @@ function App() {
       if (loansRes && loansRes.ok) {
         const loansData = await loansRes.json()
         myLoans = loansData.data?.loans?.length || 0
+        setLoans(loansData.data?.list || loansData.data?.loans || [])
       }
 
       setStats({ totalBooks, availableBooks, myLoans, pendingHolds: 0 })
@@ -49,10 +50,10 @@ function App() {
     } catch (err) {
       console.error('Failed to fetch stats:', err)
     }
-  }
+  }, [])
 
   // 获取当前用户
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     const token = localStorage.getItem('token')
     if (!token) return
 
@@ -68,11 +69,15 @@ function App() {
     } catch (err) {
       console.error('Failed to fetch user:', err)
     }
-  }
+    setLoading(false)
+  }, [fetchStats])
 
   useEffect(() => {
-    fetchUser()
-  }, [])
+    const timer = setTimeout(() => {
+      fetchUser()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [fetchUser])
 
   // 登录
   const handleLogin = async (e) => {
@@ -156,110 +161,111 @@ function App() {
     )
   }
 
-  const renderRoleDashboard = () => {
-    switch (user.role) {
-      case 'ADMIN':
-        return <AdminDashboard 
-          user={user} 
-          stats={stats} 
-          books={books} 
-          currentPage={currentPage} 
-          setCurrentPage={setCurrentPage} 
-        />
-      case 'LIBRARIAN':
-        return <LibrarianDashboard 
-          user={user} 
-          stats={stats} 
-          books={books} 
-          currentPage={currentPage} 
-          setCurrentPage={setCurrentPage} 
-        />
-      case 'STUDENT':
-        return <ReaderDashboard 
-          user={user} 
-          stats={stats} 
-          books={books} 
-          currentPage={currentPage} 
-          setCurrentPage={setCurrentPage} 
-        />
-      default:
-        return <div className="content"><div className="page-header"><h2>Access denied</h2></div></div>
-    }
+  // STUDENT role - Reader features
+  if (user.role === 'STUDENT') {
+    return (
+      <div className="dashboard-container">
+        <aside className="sidebar">
+          <nav className="sidebar-menu">
+            <div className="menu-item-header">📚 Library System</div>
+            <div className={`menu-item ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentPage('dashboard')}>
+              <span className="icon">🏠</span>
+              <span>Home</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'books' ? 'active' : ''}`} onClick={() => setCurrentPage('books')}>
+              <span className="icon">📖</span>
+              <span>Books</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'loans' ? 'active' : ''}`} onClick={() => setCurrentPage('loans')}>
+              <span className="icon">📋</span>
+              <span>My Loans</span>
+            </div>
+            <div className={`menu-item ${currentPage === 'profile' ? 'active' : ''}`} onClick={() => setCurrentPage('profile')}>
+              <span className="icon">👤</span>
+              <span>My Profile</span>
+            </div>
+          </nav>
+          <div className="user-info">
+            <div className="user-avatar">{user.name[0].toUpperCase()}</div>
+            <div className="user-details">
+              <div className="user-name">{user.name}</div>
+              <div className="user-role">{getRoleName(user.role)}</div>
+            </div>
+          </div>
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+        </aside>
+
+        <main className="main-content">
+          <header className="top-nav">
+            <span className="breadcrumb">Home / {getPageName(currentPage)}</span>
+            <div className="top-user">
+              <span className="top-user-name">{user.name}</span>
+              <span className="role-badge">{getRoleName(user.role)}</span>
+            </div>
+          </header>
+          <ReaderDashboard
+            user={user}
+            stats={stats}
+            books={books}
+            loans={loans}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            onRefreshStats={fetchStats}
+          />
+        </main>
+      </div>
+    )
   }
 
+  if (user.role === 'ADMIN') {
+    return (
+      <AdminModule
+        user={user}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogout={handleLogout}
+      />
+    )
+  }
+
+  // LIBRARIAN role
+  if (user.role === 'LIBRARIAN') {
+    return (
+      <LibrarianDashboard
+        user={user}
+        stats={stats}
+        books={books}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        handleLogout={handleLogout}
+        getRoleName={getRoleName}
+        getPageName={getPageName}
+      />
+    )
+  }
+
+  // Other roles - show under development message
   return (
     <div className="dashboard-container">
-      {/* 侧边栏 */}
-      <aside className="sidebar">
-        <nav className="sidebar-menu">
-          <div className={`menu-item ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentPage('dashboard')}>
-            <span className="icon">🏠</span>
-            <span>Dashboard</span>
-          </div>
-          <div className={`menu-item ${currentPage === 'books' ? 'active' : ''}`} onClick={() => setCurrentPage('books')}>
-            <span className="icon">📖</span>
-            <span>Books</span>
-          </div>
-          <div className={`menu-item ${currentPage === 'loans' ? 'active' : ''}`} onClick={() => setCurrentPage('loans')}>
-            <span className="icon">📋</span>
-            <span>My Loans</span>
-          </div>
-          {user.role === 'STUDENT' && (
-            <div className={`menu-item ${currentPage === 'holds' ? 'active' : ''}`} onClick={() => setCurrentPage('holds')}>
-              <span className="icon">⏳</span>
-              <span>My Holds</span>
-            </div>
-          )}
-          {(user.role === 'LIBRARIAN' || user.role === 'ADMIN') && (
-            <>
-              <div className="menu-section">Staff Functions</div>
-              <div className={`menu-item ${currentPage === 'manage' ? 'active' : ''}`} onClick={() => setCurrentPage('manage')}>
-                <span className="icon">📚</span>
-                <span>Book Management</span>
-              </div>
-              <div className={`menu-item ${currentPage === 'loans-manage' ? 'active' : ''}`} onClick={() => setCurrentPage('loans-manage')}>
-                <span className="icon">🔄</span>
-                <span>Loan Management</span>
-              </div>
-            </>
-          )}
-          {user.role === 'ADMIN' && (
-            <>
-              <div className="menu-section">System Management</div>
-              <div className={`menu-item ${currentPage === 'users' ? 'active' : ''}`} onClick={() => setCurrentPage('users')}>
-                <span className="icon">👥</span>
-                <span>User Management</span>
-              </div>
-              <div className={`menu-item ${currentPage === 'settings' ? 'active' : ''}`} onClick={() => setCurrentPage('settings')}>
-                <span className="icon">⚙️</span>
-                <span>System Settings</span>
-              </div>
-            </>
-          )}
-        </nav>
-        <div className="user-info">
-          <div className="user-avatar">{user.name[0].toUpperCase()}</div>
-          <div className="user-details">
-            <div className="user-name">{user.name}</div>
-            <div className="user-role">{getRoleName(user.role)}</div>
-          </div>
+      <div className="content">
+        <div className="page-header">
+          <h2>Feature Under Development</h2>
+          <p>This feature is not yet available for your role</p>
         </div>
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
-      </aside>
-
-      {/* 主内容 */}
-      <main className="main-content">
-        <header className="top-nav">
-          <span className="breadcrumb">Home</span>
-          <div className="top-user">
-            <span className="top-user-name">{user.name}</span>
-            <span className="role-badge">{getRoleName(user.role)}</span>
-          </div>
-        </header>
-        {renderRoleDashboard()}
-      </main>
+        <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '20px' }}>Logout</button>
+      </div>
     </div>
   )
 }
 
 export default App
+
+function getPageName(page) {
+  const names = {
+    dashboard: 'Home',
+    books: 'Books',
+    loans: 'My Loans',
+    profile: 'My Profile',
+  }
+  return names[page] || 'Unknown'
+}
