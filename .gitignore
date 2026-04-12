@@ -40,3 +40,5 @@ pnpm-debug.log*
 *.suo
 *.swp
 *.tmp
+# 脚本
+merge.bat

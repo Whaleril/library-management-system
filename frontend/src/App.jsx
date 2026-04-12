@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import ReaderDashboard from './components/reader/ReaderDashboard'
+import AdminDashboard from './components/admin/AdminDashboard'
+import LibrarianDashboard from './components/librarian/LibrarianDashboard'
 import LoginPage from './components/auth/LoginPage'
 
 const API_BASE = '/api'
@@ -114,19 +116,19 @@ function App() {
   }
 
   // Currently only implementing STUDENT role Release 1 features
-  if (user.role !== 'STUDENT') {
-    return (
-      <div className="dashboard-container">
-        <div className="content">
-          <div className="page-header">
-            <h2>Feature Under Development</h2>
-            <p>Only Student Release 1 features are currently available</p>
-          </div>
-          <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '20px' }}>Logout</button>
-        </div>
-      </div>
-    )
-  }
+  // if (user.role !== 'STUDENT') {
+  //   return (
+  //     <div className="dashboard-container">
+  //       <div className="content">
+  //         <div className="page-header">
+  //           <h2>Feature Under Development</h2>
+  //           <p>Only Student Release 1 features are currently available</p>
+  //         </div>
+  //         <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '20px' }}>Logout</button>
+  //       </div>
+  //     </div>
+  //   )
+  // }
 
   return (
     <div className="dashboard-container">
@@ -170,15 +172,35 @@ function App() {
             <span className="role-badge">{getRoleName(user.role)}</span>
           </div>
         </header>
-        <ReaderDashboard
-          user={user}
-          stats={stats}
-          books={books}
-          loans={loans}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onRefreshStats={fetchStats}
-        />
+        {user.role === 'ADMIN' && (
+          <AdminDashboard
+            user={user}
+            stats={stats}
+            books={books}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+          />
+        )}
+        {user.role === 'LIBRARIAN' && (
+          <LibrarianDashboard
+            user={user}
+            stats={stats}
+            books={books}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+          />
+        )}
+        {user.role === 'STUDENT' && (
+          <ReaderDashboard
+            user={user}
+            stats={stats}
+            books={books}
+            loans={loans}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            onRefreshStats={fetchStats}
+          />
+        )}
       </main>
     </div>
   )

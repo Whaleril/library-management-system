@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import CreateLibrarian from './CreateLibrarian'
+import LibrarianList from './LibrarianList'
+import UserManagement from './UserManagement'
 
 const AdminDashboard = ({ user, stats, books, currentPage, setCurrentPage }) => {
   const [currentView, setCurrentView] = useState('dashboard')
@@ -28,11 +30,11 @@ const AdminDashboard = ({ user, stats, books, currentPage, setCurrentPage }) => 
             <p>Available</p>
           </div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => setCurrentView('user-management')} style={{cursor: 'pointer'}}>
           <div className="stat-icon orange">👥</div>
           <div className="stat-content">
-            <h3>100</h3>
-            <p>Total Users</p>
+            <h3>User</h3>
+            <p>Manage</p>
           </div>
         </div>
         <div className="stat-card">
@@ -48,8 +50,9 @@ const AdminDashboard = ({ user, stats, books, currentPage, setCurrentPage }) => 
         <h3>Quick Actions</h3>
         <div className="quick-actions-grid">
           <button className="quick-action-btn blue" onClick={() => setCurrentPage('books')}>🔍 Search Books</button>
-          <button className="quick-action-btn green" onClick={() => setCurrentPage('users')}>👥 User Management</button>
+          <button className="quick-action-btn green" onClick={() => setCurrentView('user-management')}>👥 User Management</button>
           <button className="quick-action-btn purple" onClick={() => setCurrentView('create-librarian')}>➕ Create Librarian</button>
+          <button className="quick-action-btn blue" onClick={() => setCurrentView('librarian-list')}>📋 Librarian List</button>
           <button className="quick-action-btn orange" onClick={() => setCurrentPage('manage')}>⚙️ Book Management</button>
           <button className="quick-action-btn gray" onClick={() => setCurrentPage('settings')}>⚙️ System Settings</button>
         </div>
@@ -203,6 +206,10 @@ const AdminDashboard = ({ user, stats, books, currentPage, setCurrentPage }) => 
   switch (currentView) {
     case 'create-librarian':
       return <CreateLibrarian onBack={() => setCurrentView('dashboard')} />
+    case 'librarian-list':
+      return <LibrarianList onBack={() => setCurrentView('dashboard')} />
+    case 'user-management':
+      return <UserManagement onBack={() => setCurrentView('dashboard')} />
     default:
       switch (currentPage) {
         case 'dashboard':
