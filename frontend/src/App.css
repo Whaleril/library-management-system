@@ -1304,11 +1304,11 @@ body {
 }
 
 /* User Manage table specific styles */
-.content > .table-section:has(.data-table) {
+.content > .table-section:has(.data-table .user-manage-action-edit) {
   --actions-col-width: 316px;
 }
 
-.content > .table-section:has(.data-table) .data-table th:last-child {
+.content > .table-section:has(.data-table .user-manage-action-edit) .data-table th:last-child {
   text-align: right;
 }
 
