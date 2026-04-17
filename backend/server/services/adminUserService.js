@@ -1,7 +1,8 @@
 const prisma = require("../db/prisma");
-const { formatDateTime } = require("../utils/date"); 
+const { formatDateTime } = require("../utils/date");
 const { AppError } = require("../lib/errors");
 const bcrypt = require("bcrypt"); // 记得确认项目 package.json 里有没有 bcrypt，没有需 npm install bcrypt
+const auditLogService = require("./auditLogService");
 const ALLOWED_ROLES = ["STUDENT", "LIBRARIAN", "ADMIN"];
 
 function parsePagination(query) {
@@ -21,9 +22,9 @@ const toLibrarianDTO = (user) => {
     id: user.id,
     name: user.name,
     email: user.email,
-    staffId: user.studentId, 
+    staffId: user.studentId,
     role: user.role,
-    createdAt: formatDateTime(user.createdAt), 
+    createdAt: formatDateTime(user.createdAt),
   };
 };
 
@@ -85,6 +86,13 @@ async function createLibrarian(operatorId, payload) {
     },
   });
 
+  // 6. 记录审计日志
+  await auditLogService.record(operatorId, "ADMIN_CREATE_LIBRARIAN", "User", newUser.id, {
+    name,
+    email,
+    staffId
+  });
+
   return toLibrarianDTO(newUser);
 }
 
@@ -96,12 +104,12 @@ async function listLibrarians(query) {
     role: "LIBRARIAN",
     ...(keyword
       ? {
-          OR: [
-            { name: { contains: keyword } },
-            { email: { contains: keyword } },
-            { studentId: { contains: keyword } },
-          ],
-        }
+        OR: [
+          { name: { contains: keyword } },
+          { email: { contains: keyword } },
+          { studentId: { contains: keyword } },
+        ],
+      }
       : {}),
   };
 
@@ -170,7 +178,7 @@ async function updateLibrarian(operatorId, librarianId, payload) {
     }
   }
 
-  // 4. 执行更新 (按照你们 userService.js 的高级解构写法)
+  // 4. 执行更新 (按照 userService.js 的高级解构写法)
   const updatedUser = await prisma.user.update({
     where: { id: librarianId },
     data: {
@@ -178,6 +186,16 @@ async function updateLibrarian(operatorId, librarianId, payload) {
       ...(email !== undefined ? { email } : {}),
       ...(staffId !== undefined ? { studentId: staffId } : {}),
     },
+  });
+
+  // 5. 记录审计日志
+  await auditLogService.record(operatorId, "ADMIN_UPDATE_LIBRARIAN", "User", librarianId, {
+    oldName: librarian.name,
+    newName: name,
+    oldEmail: librarian.email,
+    newEmail: email,
+    oldStaffId: librarian.studentId,
+    newStaffId: staffId
   });
 
   return toLibrarianDTO(updatedUser);
@@ -191,6 +209,13 @@ async function deleteLibrarian(operatorId, librarianId) {
   if (!librarian || librarian.role !== "LIBRARIAN") {
     throw new AppError(404, "目标资源不存在");
   }
+
+  // 记录审计日志
+  await auditLogService.record(operatorId, "ADMIN_DELETE_LIBRARIAN", "User", librarianId, {
+    name: librarian.name,
+    email: librarian.email,
+    staffId: librarian.studentId
+  });
 
   await prisma.user.delete({
     where: { id: librarianId },
@@ -212,12 +237,12 @@ async function listUsers(query) {
     ...(role ? { role } : {}),
     ...(keyword
       ? {
-          OR: [
-            { name: { contains: keyword } },
-            { email: { contains: keyword } },
-            { studentId: { contains: keyword } },
-          ],
-        }
+        OR: [
+          { name: { contains: keyword } },
+          { email: { contains: keyword } },
+          { studentId: { contains: keyword } },
+        ],
+      }
       : {}),
   };
 
@@ -315,6 +340,14 @@ async function updateUserRole(operatorId, targetUserId, role) {
     data: { role },
   });
 
+  // 记录审计日志
+  await auditLogService.record(operatorId, "ADMIN_UPDATE_USER_ROLE", "User", targetUserId, {
+    oldRole: targetUser.role,
+    newRole: role,
+    userName: targetUser.name,
+    userEmail: targetUser.email
+  });
+
   return toUserSummaryDTO(updatedUser);
 }
 
@@ -375,7 +408,7 @@ async function resetUserPassword(operatorId, targetUserId, payload) {
 
   let newPassword;
   let tempPassword = null;
-  
+
   if (payload.newPassword) {
     validatePassword(payload.newPassword);
     newPassword = payload.newPassword;
@@ -389,6 +422,13 @@ async function resetUserPassword(operatorId, targetUserId, payload) {
   await prisma.user.update({
     where: { id: targetUserId },
     data: { passwordHash },
+  });
+
+  // 记录审计日志
+  await auditLogService.record(operatorId, "ADMIN_RESET_PASSWORD", "User", targetUserId, {
+    userName: targetUser.name,
+    userEmail: targetUser.email,
+    isTempPassword: !!tempPassword
   });
 
   return {
