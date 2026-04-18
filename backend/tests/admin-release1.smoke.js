@@ -69,7 +69,7 @@ async function main() {
 
   const adminLoginResult = await loginByEmail("admin@library.com", "admin123");
   assert.equal(adminLoginResult.response.status, 200);
-  assert.equal(adminLoginResult.body.message, "登录成功");
+  assert.equal(adminLoginResult.body.message, "Login successful");
   assert.equal(adminLoginResult.body.data.role, "ADMIN");
   assert.ok(adminLoginResult.body.data.token);
   adminToken = adminLoginResult.body.data.token;

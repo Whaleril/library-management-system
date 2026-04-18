@@ -1,6 +1,7 @@
 const express = require("express");
 
 const librarianController = require("../controllers/librarianController");
+const loanController = require("../controllers/loanController");
 const { requireAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
 
@@ -20,5 +21,10 @@ router.put("/books/:id", librarianController.editBook);
 
 // L1.4 - Delete/Archive a book
 router.delete("/books/:id", librarianController.deleteBook);
+
+// L2.1/L2.2 - Loan management
+router.get("/loans", loanController.getLibrarianLoans);
+router.post("/loans/checkout", loanController.librarianCheckoutLoan);
+router.post("/loans/return", loanController.librarianReturnLoan);
 
 module.exports = router;
