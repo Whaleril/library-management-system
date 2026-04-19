@@ -4,6 +4,7 @@ const API_BASE = '/api/librarian'
 const DEFAULT_STATS = { totalBooks: 0, availableBooks: 0, myLoans: 0, pendingHolds: 0 }
 const GENRES = ['Technology', 'Fiction', 'Science', 'History', 'Management']
 const LANGUAGES = ['Chinese', 'English', 'Others']
+const HOLD_STATUSES = ['WAITING', 'READY', 'CANCELLED']
 
 const formatDateLabel = (value) => {
   if (!value) return '-'
@@ -30,8 +31,10 @@ const LibrarianDashboard = ({
   })
   const [loading, setLoading] = useState(false)
   const [loanLoading, setLoanLoading] = useState(false)
+  const [holdLoading, setHoldLoading] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [returningLoanId, setReturningLoanId] = useState('')
+  const [holdActionLoadingId, setHoldActionLoadingId] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -41,12 +44,18 @@ const LibrarianDashboard = ({
   const [filterGenre, setFilterGenre] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [loanRecords, setLoanRecords] = useState([])
+  const [holdRecords, setHoldRecords] = useState([])
+  const [holdStatusFilter, setHoldStatusFilter] = useState('')
+  const [holdKeyword, setHoldKeyword] = useState('')
   const [checkoutForm, setCheckoutForm] = useState({ userId: '', bookIdentifier: '' })
   const [checkoutErrors, setCheckoutErrors] = useState({})
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [returnTarget, setReturnTarget] = useState(null)
+  const [readyTarget, setReadyTarget] = useState(null)
+  const [cancelHoldTarget, setCancelHoldTarget] = useState(null)
+  const [expandedHoldId, setExpandedHoldId] = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
   const [addForm, setAddForm] = useState({
     title: '',
@@ -162,6 +171,46 @@ const LibrarianDashboard = ({
     ])
   }
 
+  const fetchHoldRecords = async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setHoldLoading(true)
+    }
+
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE}/holds?page=1&size=200`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const result = await res.json()
+
+      if (result.code === 200) {
+        const list = result.data.list || []
+        setHoldRecords(list)
+        setStats(prev => ({
+          ...prev,
+          pendingHolds: list.filter(hold => hold.status === 'WAITING').length
+        }))
+      } else {
+        notify('error', result.message || 'Failed to fetch reservation records')
+      }
+    } catch (err) {
+      notify('error', 'Network error: ' + err.message)
+    } finally {
+      if (!silent) {
+        setHoldLoading(false)
+      }
+    }
+  }
+
+  const refreshHoldManagement = async (options = {}) => {
+    await Promise.all([
+      fetchBooks(1, 50, options),
+      fetchHoldRecords(options)
+    ])
+  }
+
   const handleSearch = async (e) => {
     e?.preventDefault()
 
@@ -201,6 +250,11 @@ const LibrarianDashboard = ({
     const loadPageData = async () => {
       if (currentPage === 'loans-manage') {
         await refreshLoanManagement()
+        return
+      }
+
+      if (currentPage === 'holds-manage') {
+        await refreshHoldManagement()
         return
       }
 
@@ -412,6 +466,76 @@ const LibrarianDashboard = ({
     }
   }
 
+  const handleConfirmHoldReady = async () => {
+    if (!readyTarget) {
+      return
+    }
+
+    setHoldActionLoadingId(readyTarget.id)
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE}/holds/${readyTarget.id}/ready`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      const result = await res.json()
+
+      if (result.code === 200) {
+        notify(
+          'success',
+          `${result.data?.bookTitle || 'Reservation'} is now READY. ${result.data?.notification?.message || 'The user has been notified.'}`
+        )
+        setReadyTarget(null)
+        await refreshHoldManagement({ silent: true })
+      } else {
+        notify('error', result.message || 'Failed to mark reservation as ready')
+      }
+    } catch (err) {
+      notify('error', 'Network error: ' + err.message)
+    } finally {
+      setHoldActionLoadingId('')
+    }
+  }
+
+  const handleConfirmHoldCancel = async () => {
+    if (!cancelHoldTarget) {
+      return
+    }
+
+    setHoldActionLoadingId(cancelHoldTarget.id)
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE}/holds/${cancelHoldTarget.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      const result = await res.json()
+
+      if (result.code === 200) {
+        const inventoryText = result.data?.inventoryReleased
+          ? ' Reserved inventory has been released.'
+          : ''
+
+        notify(
+          'success',
+          `${result.data?.bookTitle || 'Reservation'} has been cancelled.${inventoryText}`
+        )
+        setCancelHoldTarget(null)
+        await refreshHoldManagement({ silent: true })
+      } else {
+        notify('error', result.message || 'Failed to cancel reservation')
+      }
+    } catch (err) {
+      notify('error', 'Network error: ' + err.message)
+    } finally {
+      setHoldActionLoadingId('')
+    }
+  }
+
   const openEditModal = (book) => {
     setSelectedBook(book)
     setEditForm({
@@ -483,6 +607,47 @@ const LibrarianDashboard = ({
     return sortConfig.direction === 'asc' ? ' ↑' : ' ↓'
   }
 
+  const getHoldStatusBadgeClass = (status) => {
+    if (status === 'READY') return 'success'
+    if (status === 'CANCELLED') return 'danger'
+    return 'warning'
+  }
+
+  const getVisibleHoldRecords = () => {
+    const normalizedKeyword = holdKeyword.trim().toLowerCase()
+
+    return holdRecords.filter((hold) => {
+      const matchesStatus = !holdStatusFilter || hold.status === holdStatusFilter
+
+      if (!matchesStatus) {
+        return false
+      }
+
+      if (!normalizedKeyword) {
+        return true
+      }
+
+      return [
+        hold.id,
+        hold.bookTitle,
+        hold.isbn,
+        hold.userName,
+        hold.userId,
+        hold.userEmail,
+        hold.studentId
+      ]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(normalizedKeyword))
+    })
+  }
+
+  const getHoldStats = () => ({
+    waiting: holdRecords.filter(hold => hold.status === 'WAITING').length,
+    ready: holdRecords.filter(hold => hold.status === 'READY').length,
+    cancelled: holdRecords.filter(hold => hold.status === 'CANCELLED').length,
+    total: holdRecords.length
+  })
+
   const renderMessages = () => (
     <>
       {error && <div className="error-message">{error}</div>}
@@ -539,6 +704,7 @@ const LibrarianDashboard = ({
           <button className="quick-action-btn blue" onClick={() => setCurrentPage('books')}>🔍 Search Books</button>
           <button className="quick-action-btn green" onClick={() => setCurrentPage('loans-manage')}>📋 Manage Loans</button>
           <button className="quick-action-btn orange" onClick={() => setCurrentPage('manage')}>⚙️ Book Management</button>
+          <button className="quick-action-btn gray" onClick={() => setCurrentPage('holds-manage')}>🗂️ Manage Holds</button>
         </div>
       </div>
 
@@ -911,6 +1077,203 @@ const LibrarianDashboard = ({
     </div>
   )
 
+  const renderHoldManagement = () => {
+    const holdStats = getHoldStats()
+    const visibleHoldRecords = getVisibleHoldRecords()
+
+    return (
+      <div className="content">
+        <div className="page-header">
+          <h2>🗂️ Hold Management</h2>
+        </div>
+
+        {renderMessages()}
+
+        <div className="hold-stats-grid">
+          <div className="stat-card">
+            <div className="stat-icon orange">⏳</div>
+            <div className="stat-content">
+              <h3>{holdStats.waiting}</h3>
+              <p>WAITING</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon green">✅</div>
+            <div className="stat-content">
+              <h3>{holdStats.ready}</h3>
+              <p>READY</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon red">✖</div>
+            <div className="stat-content">
+              <h3>{holdStats.cancelled}</h3>
+              <p>CANCELLED</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon blue">📚</div>
+            <div className="stat-content">
+              <h3>{holdStats.total}</h3>
+              <p>Total Holds</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="hold-management-panel">
+          <div className="hold-toolbar">
+            <div className="hold-filter-group">
+              <label>Status</label>
+              <select value={holdStatusFilter} onChange={(e) => setHoldStatusFilter(e.target.value)}>
+                <option value="">All Status</option>
+                {HOLD_STATUSES.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="hold-search-group">
+              <label>Search</label>
+              <input
+                type="text"
+                value={holdKeyword}
+                onChange={(e) => setHoldKeyword(e.target.value)}
+                placeholder="Search hold ID, book, ISBN, user..."
+              />
+            </div>
+
+            <button
+              className="btn-secondary hold-refresh-btn"
+              onClick={() => refreshHoldManagement()}
+              disabled={holdLoading || !!holdActionLoadingId}
+            >
+              {holdLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+
+          <div className="hold-toolbar-note">
+            Librarians can mark a WAITING reservation as READY when stock is available, or cancel WAITING and READY reservations.
+          </div>
+
+          {holdLoading ? (
+            <div className="loading">Loading reservation records...</div>
+          ) : visibleHoldRecords.length === 0 ? (
+            <div className="no-data">No reservation records found for the selected filters</div>
+          ) : (
+            <div className="hold-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Reservation ID</th>
+                    <th>Book</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleHoldRecords.map((hold) => {
+                    const isExpanded = expandedHoldId === hold.id
+
+                    return (
+                      <React.Fragment key={hold.id}>
+                        <tr
+                          className={`hold-row ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() => setExpandedHoldId(isExpanded ? '' : hold.id)}
+                        >
+                          <td>
+                            <div className="loan-record-title">{hold.id}</div>
+                            <div className="loan-record-meta">Updated: {formatDateLabel(hold.updatedAt)}</div>
+                          </td>
+                          <td>
+                            <div className="loan-record-title">{hold.bookTitle}</div>
+                            <div className="loan-record-meta">ISBN: {hold.isbn}</div>
+                          </td>
+                          <td>
+                            <div className="loan-record-title">{hold.userName}</div>
+                            <div className="loan-record-meta">{hold.userId}</div>
+                          </td>
+                          <td>
+                            <span className={`status-badge ${getHoldStatusBadgeClass(hold.status)}`}>
+                              {hold.status}
+                            </span>
+                          </td>
+                          <td>{formatDateLabel(hold.createdAt)}</td>
+                          <td className="action-buttons-cell" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className="btn-sm btn-secondary-action"
+                              onClick={() => setExpandedHoldId(isExpanded ? '' : hold.id)}
+                            >
+                              {isExpanded ? 'Hide' : 'Details'}
+                            </button>
+                            {hold.status === 'WAITING' && (
+                              <button
+                                className="btn-sm btn-edit"
+                                disabled={holdActionLoadingId === hold.id}
+                                onClick={() => setReadyTarget(hold)}
+                              >
+                                {holdActionLoadingId === hold.id ? 'Processing...' : 'Ready'}
+                              </button>
+                            )}
+                            {['WAITING', 'READY'].includes(hold.status) && (
+                              <button
+                                className="btn-sm btn-delete"
+                                disabled={holdActionLoadingId === hold.id}
+                                onClick={() => setCancelHoldTarget(hold)}
+                              >
+                                {holdActionLoadingId === hold.id ? 'Processing...' : 'Cancel'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="hold-detail-row">
+                            <td colSpan="6">
+                              <div className="hold-detail-grid">
+                                <div className="hold-detail-card">
+                                  <h4>User Details</h4>
+                                  <p><strong>Name:</strong> {hold.userName}</p>
+                                  <p><strong>User ID:</strong> {hold.userId}</p>
+                                  <p><strong>Email:</strong> {hold.userEmail || '-'}</p>
+                                  <p><strong>Student ID:</strong> {hold.studentId || '-'}</p>
+                                </div>
+                                <div className="hold-detail-card">
+                                  <h4>Book Details</h4>
+                                  <p><strong>Title:</strong> {hold.bookTitle}</p>
+                                  <p><strong>Author:</strong> {hold.bookAuthor}</p>
+                                  <p><strong>ISBN:</strong> {hold.isbn}</p>
+                                  <p><strong>Genre:</strong> {hold.genre}</p>
+                                  <p><strong>Language:</strong> {hold.language}</p>
+                                  <p><strong>Shelf:</strong> {hold.shelfLocation}</p>
+                                  <p><strong>Available Copies:</strong> {hold.availableCopies}</p>
+                                </div>
+                                <div className="hold-detail-card">
+                                  <h4>Status Timeline</h4>
+                                  <p><strong>Reserved At:</strong> {formatDateLabel(hold.createdAt)}</p>
+                                  <p><strong>Ready At:</strong> {formatDateLabel(hold.readyAt)}</p>
+                                  <p><strong>Last Updated:</strong> {formatDateLabel(hold.updatedAt)}</p>
+                                  <p><strong>Current Status:</strong> {hold.status}</p>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {readyTarget && renderHoldReadyConfirm()}
+        {cancelHoldTarget && renderHoldCancelConfirm()}
+      </div>
+    )
+  }
+
   // Add Book Modal
   const renderAddModal = () => (
     <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
@@ -1155,6 +1518,57 @@ const LibrarianDashboard = ({
     </div>
   )
 
+  const renderHoldReadyConfirm = () => (
+    <div className="modal-overlay" onClick={() => setReadyTarget(null)}>
+      <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Mark Reservation Ready</h3>
+          <button className="modal-close" onClick={() => setReadyTarget(null)}>×</button>
+        </div>
+        <div className="modal-body">
+          <p>Confirm that this reserved book is ready for pickup?</p>
+          <p className="book-title-highlight">{readyTarget?.bookTitle}</p>
+          <div className="return-confirm-detail">Reservation ID: {readyTarget?.id}</div>
+          <div className="return-confirm-detail">Borrower: {readyTarget?.userName}</div>
+          <div className="return-confirm-detail">Available Copies: {readyTarget?.availableCopies}</div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={() => setReadyTarget(null)}>Cancel</button>
+          <button className="btn-primary" onClick={handleConfirmHoldReady} disabled={holdActionLoadingId === readyTarget?.id}>
+            {holdActionLoadingId === readyTarget?.id ? 'Saving...' : 'Confirm Ready'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderHoldCancelConfirm = () => (
+    <div className="modal-overlay" onClick={() => setCancelHoldTarget(null)}>
+      <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Cancel Reservation</h3>
+          <button className="modal-close" onClick={() => setCancelHoldTarget(null)}>×</button>
+        </div>
+        <div className="modal-body">
+          <p>Confirm cancelling this reservation?</p>
+          <p className="book-title-highlight">{cancelHoldTarget?.bookTitle}</p>
+          <div className="return-confirm-detail">Reservation ID: {cancelHoldTarget?.id}</div>
+          <div className="return-confirm-detail">Borrower: {cancelHoldTarget?.userName}</div>
+          <div className="return-confirm-detail">Current Status: {cancelHoldTarget?.status}</div>
+          {cancelHoldTarget?.status === 'READY' && (
+            <p className="warning-text">Cancelling a READY reservation will restore one copy back to inventory.</p>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={() => setCancelHoldTarget(null)}>Keep Reservation</button>
+          <button className="btn-danger" onClick={handleConfirmHoldCancel} disabled={holdActionLoadingId === cancelHoldTarget?.id}>
+            {holdActionLoadingId === cancelHoldTarget?.id ? 'Cancelling...' : 'Confirm Cancel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   switch (currentPage) {
     case 'dashboard':
       return renderDashboard()
@@ -1164,6 +1578,8 @@ const LibrarianDashboard = ({
       return renderManageBooks()
     case 'loans-manage':
       return renderLoanManagement()
+    case 'holds-manage':
+      return renderHoldManagement()
     default:
       return <div className="content"><div className="page-header"><h2>Under development...</h2></div></div>
   }

@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:smoke && npm run test:admin && npm run test:librarian-release2",
+    "test": "npm run test:smoke && npm run test:admin && npm run test:librarian-release2 && npm run test:librarian-hold-release2",
     "test:smoke": "node tests/reader-release1.smoke.js",
     "test:admin": "node tests/admin-release1.smoke.js",
     "test:librarian-release2": "node tests/librarian-release2.smoke.js",
+    "test:librarian-hold-release2": "node tests/librarian-hold-release2.smoke.js",
     "dev": "nodemon index.js",
     "start": "node index.js",
     "studio": "prisma studio --port 5555"

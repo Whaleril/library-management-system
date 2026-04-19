@@ -1,5 +1,6 @@
 const express = require("express");
 
+const holdController = require("../controllers/holdController");
 const librarianController = require("../controllers/librarianController");
 const loanController = require("../controllers/loanController");
 const { requireAuth } = require("../middleware/auth");
@@ -26,5 +27,10 @@ router.delete("/books/:id", librarianController.deleteBook);
 router.get("/loans", loanController.getLibrarianLoans);
 router.post("/loans/checkout", loanController.librarianCheckoutLoan);
 router.post("/loans/return", loanController.librarianReturnLoan);
+
+// L2.3 - Hold management
+router.get("/holds", holdController.getLibrarianHolds);
+router.put("/holds/:id/ready", holdController.markHoldReady);
+router.delete("/holds/:id", holdController.cancelLibrarianHold);
 
 module.exports = router;

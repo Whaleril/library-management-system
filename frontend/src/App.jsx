@@ -200,6 +200,10 @@ function App() {
               <span className="icon">🔄</span>
               <span>Loan Management</span>
             </div>
+            <div className={`menu-item ${currentPage === 'holds-manage' ? 'active' : ''}`} onClick={() => setCurrentPage('holds-manage')}>
+              <span className="icon">🗂️</span>
+              <span>Hold Management</span>
+            </div>
           </nav>
           <div className="user-info">
             <div className="user-avatar">{user.name[0].toUpperCase()}</div>
@@ -263,7 +267,8 @@ function getPageName(page) {
     'loans': 'My Loans',
     'profile': 'My Profile',
     'manage': 'Manage Books',
-    'loans-manage': 'Loan Management'
+    'loans-manage': 'Loan Management',
+    'holds-manage': 'Hold Management'
   }
   return names[page] || 'Unknown'
 }
