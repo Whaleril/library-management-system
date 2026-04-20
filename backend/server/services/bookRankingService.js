@@ -2,15 +2,15 @@ const prisma = require("../db/prisma");
 const { AppError } = require("../lib/errors");
 
 const RANKING_LIMIT = 10;
-const RANKING_RANGES = new Set(["month", "3months", "year"]);
+const VALID_RANGES = new Set(["month", "3months", "year"]);
 
 function normalizeRange(range) {
   if (!range) {
     return "month";
   }
 
-  if (!RANKING_RANGES.has(range)) {
-    throw new AppError(400, "参数错误");
+  if (!VALID_RANGES.has(range)) {
+    throw new AppError(400, "Invalid parameters");
   }
 
   return range;
@@ -34,21 +34,21 @@ function getStartDate(range) {
   return date;
 }
 
-function toRankingItem(ranking, rank) {
+function toRankingItem(row, index) {
   return {
-    rank,
-    bookId: ranking.bookId,
-    bookTitle: ranking.bookTitle,
-    bookAuthor: ranking.bookAuthor,
-    cover: ranking.cover,
-    loanCount: Number(ranking.loanCount),
+    rank: index + 1,
+    bookId: row.bookId,
+    bookTitle: row.bookTitle,
+    bookAuthor: row.bookAuthor,
+    cover: row.cover,
+    loanCount: Number(row.loanCount),
   };
 }
 
 async function getRanking(query) {
   const range = normalizeRange(query?.range);
   const startDate = getStartDate(range);
-  const rankings = await prisma.$queryRaw`
+  const rows = await prisma.$queryRaw`
     SELECT
       l.bookId AS bookId,
       b.title AS bookTitle,
@@ -63,12 +63,8 @@ async function getRanking(query) {
     LIMIT ${RANKING_LIMIT}
   `;
 
-  if (rankings.length === 0) {
-    return { list: [] };
-  }
-
   return {
-    list: rankings.map((ranking, index) => toRankingItem(ranking, index + 1)),
+    list: rows.map(toRankingItem),
   };
 }
 
