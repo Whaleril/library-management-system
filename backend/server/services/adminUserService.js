@@ -188,16 +188,31 @@ async function updateLibrarian(operatorId, librarianId, payload) {
     },
   });
 
-  // 5. 记录审计日志
-  await auditLogService.record(operatorId, "ADMIN_UPDATE_LIBRARIAN", "User", librarianId, {
-    oldName: librarian.name,
-    newName: name,
-    oldEmail: librarian.email,
-    newEmail: email,
-    oldStaffId: librarian.studentId,
-    newStaffId: staffId
-  });
+  // 5. 基于更新前后结果计算实际变更，避免未传字段在审计日志中变成 undefined
+  const auditDetail = {};
 
+  if (librarian.name !== updatedUser.name) {
+    auditDetail.oldName = librarian.name;
+    auditDetail.newName = updatedUser.name;
+  }
+
+  if (librarian.email !== updatedUser.email) {
+    auditDetail.oldEmail = librarian.email;
+    auditDetail.newEmail = updatedUser.email;
+  }
+
+  if (librarian.studentId !== updatedUser.studentId) {
+    auditDetail.oldStaffId = librarian.studentId;
+    auditDetail.newStaffId = updatedUser.studentId;
+  }
+
+  await auditLogService.record(
+    operatorId,
+    "ADMIN_UPDATE_LIBRARIAN",
+    "User",
+    librarianId,
+    auditDetail
+  );
   return toLibrarianDTO(updatedUser);
 }
 
@@ -210,15 +225,26 @@ async function deleteLibrarian(operatorId, librarianId) {
     throw new AppError(404, "目标资源不存在");
   }
 
-  // 记录审计日志
-  await auditLogService.record(operatorId, "ADMIN_DELETE_LIBRARIAN", "User", librarianId, {
+  const detail = {
     name: librarian.name,
     email: librarian.email,
-    staffId: librarian.studentId
-  });
+    staffId: librarian.studentId,
+  };
 
-  await prisma.user.delete({
-    where: { id: librarianId },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.delete({
+      where: { id: librarianId },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        operatorId,
+        action: "ADMIN_DELETE_LIBRARIAN",
+        targetType: "User",
+        targetId: librarianId,
+        detail,
+      },
+    });
   });
 
   return null;

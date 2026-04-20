@@ -23,7 +23,7 @@ router.use(userRoutes);
 router.use(wishlistRoutes);
 router.use(ratingRoutes);
 router.use(adminUserRoutes);
-router.use("/admin", adminRoutes);
 router.use(adminAuditRoutes);
+router.use("/admin", adminRoutes);
 
 module.exports = router;
