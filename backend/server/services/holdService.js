@@ -3,18 +3,18 @@ const { AppError } = require("../lib/errors");
 const { formatDateTime } = require("../utils/date");
 
 async function createHold(userId, bookId) {
-    // 1. 检查图书是否存在
+    // 1. Check whether the book exists.
     const book = await prisma.book.findUnique({ where: { id: bookId } });
     if (!book) {
-        throw new AppError(404, "图书不存在");
+        throw new AppError(404, "Book not found");
     }
 
-    // 2. 校验库存：仅图书当前不可借时才允许预约
+    // 2. Validate inventory: reservation is allowed only when the book is currently unavailable.
     if (book.availableCopies > 0) {
-        throw new AppError(400, "该书当前可借，请直接借阅；或您已预约过该书"); // 文档原话
+        throw new AppError(400, "This book is currently available; please borrow it directly, or you have already reserved it"); // Original wording from the spec.
     }
 
-    // 3. 校验借阅状态
+    // 3. Validate loan status.
     const currentLoan = await prisma.loan.findFirst({
         where: {
             userId: userId,
@@ -23,7 +23,7 @@ async function createHold(userId, bookId) {
         }
     });
     if (currentLoan) {
-        throw new AppError(400, "您当前正借阅该书，在归还前无法预约");
+        throw new AppError(400, "You are currently borrowing this book and cannot reserve it before returning it");
     }
 
 
@@ -35,10 +35,10 @@ async function createHold(userId, bookId) {
         }
     });
     if (existingHold) {
-        throw new AppError(400, "该书当前可借，请直接借阅；或您已预约过该书");
+        throw new AppError(400, "This book is currently available; please borrow it directly, or you have already reserved it");
     }
 
-    // 5. 插入记录
+    // 5. Insert record.
     const newHold = await prisma.hold.create({
         data: {
             userId: userId,
@@ -92,22 +92,22 @@ async function getHolds(userId, status, page = 1, size = 10) {
 }
 
 /**
- * 2.5 取消预约
+ * 2.5 Cancel reservation.
  */
 async function cancelHold(userId, holdId) {
     const hold = await prisma.hold.findUnique({
         where: { id: holdId }
     });
 
-    // 校验归属权
+    // Validate ownership.
     if (!hold || hold.userId !== userId) {
-        throw new AppError(404, "预约记录不存在或非当前用户");
+        throw new AppError(404, "Reservation record not found or does not belong to the current user");
     }
 
-    // 仅 Waiting 和 Ready 状态允许取消
+    // Only reservations in Waiting and Ready status can be cancelled.
     const allowedStatus = ['WAITING', 'READY'];
     if (!allowedStatus.includes(hold.status)) {
-        throw new AppError(404, "该预约记录已取消或已完成");
+        throw new AppError(404, "This reservation record has already been cancelled or fulfilled");
     }
 
     await prisma.hold.update({

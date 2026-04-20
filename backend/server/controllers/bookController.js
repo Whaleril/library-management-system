@@ -29,8 +29,7 @@ async function getBookDetail(req, res, next) {
   }
 }
 
-
-//获取图书列表支持筛选排序分页
+// Get book list with filtering, sorting, and pagination.
 async function getBooksWithFilters(req, res, next) {
   try {
     const data = await bookService.getBooksWithFilters(req.query);
@@ -40,19 +39,19 @@ async function getBooksWithFilters(req, res, next) {
   }
 }
 
-//新书通报
+// Get new books announcement.
 async function getNewBooks(req, res, next) {
   try {
     const data = await bookService.getNewBooks(req.query);
-    console.log("getNewBooks 返回数据:", data);
+    console.log("getNewBooks returned data:", data);
     sendSuccess(res, data);
   } catch (error) {
-    console.log("getNewBooks 控制器错误:", error);
+    console.log("getNewBooks controller error:", error);
     next(error);
   }
 }
 
-//借阅排行榜
+// Get loan ranking.
 async function getRanking(req, res, next) {
   try {
     const data = await bookRankingService.getRanking(req.query);

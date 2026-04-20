@@ -114,7 +114,7 @@ async function main() {
     }),
   });
   assert.equal(registerResult.response.status, 200);
-  assert.equal(registerResult.body.message, "注册成功");
+  assert.equal(registerResult.body.message, "Registration successful");
   registeredUserId = registerResult.body.data.userId;
 
   const secondRegisterResult = await request("/api/register", {
@@ -203,7 +203,7 @@ async function main() {
     }),
   });
   assert.equal(borrowResult.response.status, 200);
-  assert.equal(borrowResult.body.message, "借阅成功");
+  assert.equal(borrowResult.body.message, "Borrowing successful");
   const loanId = borrowResult.body.data.loanId;
 
   const borrowedBook = await prisma.book.findUnique({
@@ -263,7 +263,7 @@ async function main() {
     },
   });
   assert.equal(returnResult.response.status, 200);
-  assert.equal(returnResult.body.message, "归还成功");
+  assert.equal(returnResult.body.message, "Return successful");
   assert.equal(returnResult.body.data.status, "Returned");
   assert.equal(returnResult.body.data.bookId, testBookId);
   assert.equal(returnResult.body.data.fineAmount, 0);
@@ -329,7 +329,7 @@ async function main() {
     }),
   });
   assert.equal(blockedBorrowResult.response.status, 400);
-  assert.equal(blockedBorrowResult.body.message, "该书当前不可借或您有未缴清罚款");
+  assert.equal(blockedBorrowResult.body.message, "This book is currently unavailable, or you have unpaid fines");
 
   const noFinePayResult = await request(`/api/loans/${loanId}/pay-fine`, {
     method: "POST",
@@ -351,7 +351,7 @@ async function main() {
     }),
   });
   assert.equal(wrongAmountPayResult.response.status, 400);
-  assert.equal(wrongAmountPayResult.body.message, "该笔借阅无待缴罚款或金额不足");
+  assert.equal(wrongAmountPayResult.body.message, "This loan has no payable fine, or the payment amount is insufficient");
 
   const unauthorizedPayResult = await request(`/api/loans/${fineLoanId}/pay-fine`, {
     method: "POST",
@@ -370,7 +370,7 @@ async function main() {
     },
   });
   assert.equal(payFineResult.response.status, 200);
-  assert.equal(payFineResult.body.message, "罚款已缴纳");
+  assert.equal(payFineResult.body.message, "Fine paid successfully");
   assert.equal(payFineResult.body.data.loanId, fineLoanId);
   assert.equal(payFineResult.body.data.fineAmount, 5);
   assert.equal(payFineResult.body.data.finePaid, true);
@@ -455,7 +455,7 @@ async function main() {
     },
   });
   assert.equal(logoutResult.response.status, 200);
-  assert.equal(logoutResult.body.message, "已退出登录");
+  assert.equal(logoutResult.body.message, "Logged out successfully");
 
   const postLogoutMe = await request("/api/users/me", {
     headers: {

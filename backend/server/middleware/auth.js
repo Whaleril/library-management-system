@@ -8,12 +8,12 @@ async function requireAuth(req, res, next) {
     const [type, token] = authorization.split(" ");
 
     if (type !== "Bearer" || !token) {
-      throw new AppError(401, "未登录或 token 无效");
+      throw new AppError(401, "Not logged in or invalid token");
     }
 
     const payload = verifyToken(token);
     if (!payload?.userId) {
-      throw new AppError(401, "未登录或 token 无效");
+      throw new AppError(401, "Not logged in or invalid token");
     }
 
     const user = await prisma.user.findUnique({
@@ -21,7 +21,7 @@ async function requireAuth(req, res, next) {
     });
 
     if (!user) {
-      throw new AppError(401, "未登录或 token 无效");
+      throw new AppError(401, "Not logged in or invalid token");
     }
 
     req.authToken = token;

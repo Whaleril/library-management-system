@@ -21,7 +21,7 @@ async function syncOverdueLoansForUser(userId) {
   });
 }
 /**
- * 返回当前借阅
+ * Return current loans.
  * @param {} loan 
  * @returns 
  */
@@ -38,7 +38,7 @@ function toCurrentLoan(loan) {
   };
 }
 /**
- * 返回历史借阅
+ * Return loan history.
  * @param {} loan 
  * @returns 
  */
@@ -46,7 +46,7 @@ function toHistoryLoan(loan) {
   return {
     id: loan.id,
     bookId: loan.book?.id || loan.bookId || null,
-    bookTitle: loan.book?.title || "该图书已下架",
+    bookTitle: loan.book?.title || "This book is no longer available",
     bookAuthor: loan.book?.author || "-",
     checkoutDate: formatDateTime(loan.checkoutDate),
     dueDate: formatDateTime(loan.dueDate),
@@ -60,7 +60,7 @@ function toHistoryLoan(loan) {
 
 async function ensureNoUnpaidFines(
   userId,
-  message = "该书当前不可借或您有未缴清罚款",
+  message = "This book is currently unavailable, or you have unpaid fines",
 ) {
   const unpaidFineLoan = await prisma.loan.findFirst({
     where: {
@@ -142,11 +142,11 @@ async function ensureBorrowAllowed(userId, bookId) {
   });
 
   if (!book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
   if (!book.available || book.availableCopies <= 0) {
-    throw new AppError(400, "该书当前不可借或您有未缴清罚款");
+    throw new AppError(400, "This book is currently unavailable, or you have unpaid fines");
   }
 
   await ensureNoUnpaidFines(userId);
@@ -158,7 +158,7 @@ async function createLoan(userId, payload) {
   const { bookId } = payload || {};
 
   if (!bookId) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   const book = await ensureBorrowAllowed(userId, bookId);
@@ -213,31 +213,31 @@ async function renewLoan(userId, loanId) {
   });
 
   if (!loan) {
-    throw new AppError(404, "借阅记录不存在");
+    throw new AppError(404, "Loan record not found");
   }
 
   if (loan.userId !== userId) {
-    throw new AppError(404, "借阅记录不存在或非当前用户");
+    throw new AppError(404, "Loan record not found or does not belong to the current user");
   }
 
   if (!["Borrowing", "Overdue"].includes(loan.status)) {
-    throw new AppError(400, "仅借阅中的图书可续借");
+    throw new AppError(400, "Only borrowed books can be renewed");
   }
 
   if (loan.renewalCount >= 1) {
-    throw new AppError(400, "已达续借次数上限");
+    throw new AppError(400, "Renewal limit reached");
   }
 
   const now = new Date();
   if (loan.status === "Overdue" || loan.dueDate < now) {
-    throw new AppError(400, "已逾期的图书不可续借");
+    throw new AppError(400, "Overdue books cannot be renewed");
   }
 
   if (loan.status !== "Borrowing") {
-    throw new AppError(400, "仅借阅中的图书可续借");
+    throw new AppError(400, "Only borrowed books can be renewed");
   }
 
-  await ensureNoUnpaidFines(userId, "您有未缴清罚款，不可续借");
+  await ensureNoUnpaidFines(userId, "You have unpaid fines and cannot renew");
 
   const otherHold = await prisma.hold.findFirst({
     where: {
@@ -248,7 +248,7 @@ async function renewLoan(userId, loanId) {
   });
 
   if (otherHold) {
-    throw new AppError(400, "该书已被其他读者预约，不可续借");
+    throw new AppError(400, "This book has been reserved by another reader and cannot be renewed");
   }
 
   const newDueDate = addDays(loan.dueDate, 30);
@@ -276,15 +276,15 @@ async function returnLoan(userId, loanId) {
   });
 
   if (!loan || loan.userId !== userId) {
-    throw new AppError(404, "借阅记录不存在或非当前用户");
+    throw new AppError(404, "Loan record not found or does not belong to the current user");
   }
 
   if (loan.status === "Returned" || loan.returnDate) {
-    throw new AppError(400, "该借阅记录已归还");
+    throw new AppError(400, "This loan record has already been returned");
   }
 
   if (!loan.book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
   const now = new Date();
@@ -336,18 +336,18 @@ async function payFine(userId, loanId, payload) {
     });
 
     if (!loan || loan.userId !== userId) {
-      throw new AppError(404, "借阅记录不存在或非当前用户");
+      throw new AppError(404, "Loan record not found or does not belong to the current user");
     }
 
     const fineAmount = Number(loan.fineAmount);
     if (fineAmount <= 0 || loan.finePaid || loan.fineForgiven) {
-      throw new AppError(400, "该笔借阅无待缴罚款或金额不足");
+      throw new AppError(400, "This loan has no payable fine, or the payment amount is insufficient");
     }
 
     if (amountInput !== undefined) {
       const amount = Number(amountInput);
       if (!Number.isFinite(amount) || amount !== fineAmount) {
-        throw new AppError(400, "该笔借阅无待缴罚款或金额不足");
+        throw new AppError(400, "This loan has no payable fine, or the payment amount is insufficient");
       }
     }
 

@@ -18,7 +18,7 @@ app.get("/health", (req, res) => {
 app.use("/api", apiRoutes);
 
 app.use((req, res) => {
-  sendError(res, new AppError(404, "资源不存在"));
+  sendError(res, new AppError(404, "Resource not found"));
 });
 
 app.use((err, req, res, next) => {
@@ -27,7 +27,7 @@ app.use((err, req, res, next) => {
   }
 
   console.error(err);
-  return sendError(res, new AppError(500, "服务器内部错误"));
+  return sendError(res, new AppError(500, "Internal server error"));
 });
 
 module.exports = app;
