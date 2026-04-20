@@ -8,7 +8,7 @@ function requireRole(allowedRoles) {
   return async function roleGuard(req, res, next) {
     try {
       if (!req.currentUser) {
-        throw new AppError(401, "未登录或 token 无效");
+        throw new AppError(401, "Not logged in or invalid token");
       }
       if (!allowedRoles.includes(req.currentUser.role)) {
         throw new AppError(403, "Forbidden");

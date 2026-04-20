@@ -20,14 +20,14 @@ async function register(payload) {
   const { name, email, password, studentId } = payload || {};
 
   if (!name || !email || !password) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   const existingEmailUser = await prisma.user.findUnique({
     where: { email },
   });
   if (existingEmailUser) {
-    throw new AppError(400, "该邮箱已被注册");
+    throw new AppError(400, "This email has already been registered");
   }
 
   if (studentId) {
@@ -35,7 +35,7 @@ async function register(payload) {
       where: { studentId },
     });
     if (existingStudent) {
-      throw new AppError(400, "该学号已被使用");
+      throw new AppError(400, "This student ID is already in use");
     }
   }
 
@@ -62,7 +62,7 @@ async function login(payload) {
   const { userName, password } = payload || {};
 
   if (!userName || !password) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   const user = await prisma.user.findUnique({
@@ -70,12 +70,12 @@ async function login(payload) {
   });
 
   if (!user) {
-    throw new AppError(401, "用户名或密码错误");
+    throw new AppError(401, "Invalid username or password");
   }
 
   const passwordMatched = await bcrypt.compare(password, user.passwordHash);
   if (!passwordMatched) {
-    throw new AppError(401, "用户名或密码错误");
+    throw new AppError(401, "Invalid username or password");
   }
 
   const token = issueToken({
@@ -93,11 +93,13 @@ async function login(payload) {
 
 async function logout(token) {
   if (!token) {
-    throw new AppError(401, "未登录或 token 无效");
+    throw new AppError(401, "Not logged in or invalid token");
   }
 
   revokeToken(token);
 }
+
+
 
 module.exports = {
   register,

@@ -7,7 +7,7 @@ async function addToWishlist(req, res, next) {
       req.currentUser.id,
       req.body.bookId
     );
-    sendSuccess(res, data, "已加入心愿单");
+    sendSuccess(res, data, "Added to wishlist");
   } catch (error) {
     next(error);
   }
@@ -33,7 +33,7 @@ async function removeFromWishlist(req, res, next) {
   try {
     const { id } = req.params;
     await wishlistService.removeFromWishlist(req.currentUser.id, id);
-    sendSuccess(res, null, "已从心愿单移除");
+    sendSuccess(res, null, "Removed from wishlist");
   } catch (error) {
     next(error);
   }

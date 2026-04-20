@@ -7,6 +7,7 @@
     "test": "npm run test:smoke && npm run test:fine",
     "test:smoke": "node tests/reader-release1.smoke.js",
     "test:fine": "node tests/reader-fine-edge.js",
+    "test:admin": "node tests/admin-release1.smoke.js",
     "dev": "nodemon index.js",
     "start": "node index.js",
     "studio": "prisma studio --port 5555"

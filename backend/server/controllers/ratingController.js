@@ -1,12 +1,12 @@
 // backend/controllers/ratingController.js
 const ratingService = require('../services/ratingService');
 const { AppError } = require('../lib/errors');
-const { sendSuccess } = require('../lib/response');  // 改成 sendSuccess
+const { sendSuccess } = require('../lib/response');  // Changed to sendSuccess.
 
 class RatingController {
   /**
    * POST /api/books/:bookId/rating
-   * 对图书评分
+   * Rate a book.
    */
   async createOrUpdateRating(req, res, next) {
     try {
@@ -15,28 +15,28 @@ class RatingController {
       const userId = req.currentUser.id;
 
       if (!stars || stars < 1 || stars > 5) {
-        throw new AppError(400, '评分必须在1-5之间');
+        throw new AppError(400, 'Rating must be between 1 and 5');
       }
 
       const book = await ratingService.checkBookExists(bookId);
       if (!book) {
-        throw new AppError(404, '图书不存在');
+        throw new AppError(404, 'Book not found');
       }
 
       const hasBorrowed = await ratingService.hasUserBorrowedBook(userId, bookId);
       if (!hasBorrowed) {
-        throw new AppError(400, '只有借阅过该图书的读者才能评分');
+        throw new AppError(400, 'Only readers who have borrowed this book can rate it');
       }
 
       const { rating, isUpdate } = await ratingService.upsertRating(userId, bookId, stars);
 
-      // 改成 sendSuccess，注意参数顺序：sendSuccess(res, data, message)
+      // Changed to sendSuccess. Note the parameter order: sendSuccess(res, data, message).
       sendSuccess(res, {
         id: rating.id,
         bookId: rating.bookId,
         stars: rating.stars,
         createdAt: rating.createdAt
-      }, isUpdate ? '评分已更新' : '评分成功');
+      }, isUpdate ? 'Rating updated' : 'Rating submitted successfully');
 
     } catch (error) {
       next(error);
@@ -45,7 +45,7 @@ class RatingController {
 
   /**
    * GET /api/books/:bookId/ratings
-   * 获取某本书的所有评分
+   * Get all ratings for a specific book.
    */
   async getBookRatings(req, res, next) {
     try {
@@ -54,7 +54,7 @@ class RatingController {
       const size = parseInt(req.query.size) || 10;
       const book = await ratingService.checkBookExists(bookId);
       if (!book) {
-        throw new AppError(404, '图书不存在');
+        throw new AppError(404, 'Book not found');
       }
       const ratings = await ratingService.getBookRatings(bookId, page, size);
       const stats = await ratingService.getBookRatingStats(bookId);
@@ -70,7 +70,7 @@ class RatingController {
 
   /**
    * GET /api/users/me/ratings
-   * 获取当前用户的评分记录
+   * Get the current user's rating records.
    */
   async getMyRatings(req, res, next) {
     try {
@@ -88,7 +88,7 @@ class RatingController {
 
   /**
    * GET /api/books/:bookId/rating/stats
-   * 仅获取某本书的评分统计
+   * Get rating statistics for a specific book only.
    */
   async getBookRatingStats(req, res, next) {
     try {
@@ -96,7 +96,7 @@ class RatingController {
 
       const book = await ratingService.checkBookExists(bookId);
       if (!book) {
-        throw new AppError(404, '图书不存在');
+        throw new AppError(404, 'Book not found');
       }
 
       const stats = await ratingService.getBookRatingStats(bookId);
