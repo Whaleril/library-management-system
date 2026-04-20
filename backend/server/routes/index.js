@@ -10,11 +10,11 @@ const ratingRoutes = require("./ratingRoutes");  // 评分路由
 const adminUserRoutes = require("./adminUserRoutes");
 const adminRoutes = require("./adminRoutes");
 const librarianRoutes = require("./librarianRoutes");
+const adminAuditRoutes = require("./adminAuditRoutes");
 
 const router = express.Router();
 
 router.use(authRoutes);
-router.use("/admin", adminRoutes);
 router.use("/librarian", librarianRoutes);
 router.use(bookRoutes);
 router.use(holdRoutes);
@@ -23,5 +23,7 @@ router.use(userRoutes);
 router.use(wishlistRoutes);
 router.use(ratingRoutes);
 router.use(adminUserRoutes);
+router.use(adminAuditRoutes);
+router.use("/admin", adminRoutes);
 
 module.exports = router;
