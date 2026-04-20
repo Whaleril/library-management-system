@@ -3,7 +3,28 @@ const { AppError } = require("../lib/errors");
 const { formatDateTime, addDays } = require("../utils/date");
 
 const DEFAULT_LOAN_DAYS = 30;
+const OVERDUE_FINE_AMOUNT = 5;
 
+async function syncOverdueLoansForUser(userId) {
+  const now = new Date();
+
+  await prisma.loan.updateMany({
+    where: {
+      userId,
+      status: "Borrowing",
+      returnDate: null,
+      dueDate: { lt: now },
+    },
+    data: {
+      status: "Overdue",
+    },
+  });
+}
+/**
+ * Return current loans.
+ * @param {} loan 
+ * @returns 
+ */
 function toCurrentLoan(loan) {
   return {
     id: loan.id,
@@ -16,12 +37,54 @@ function toCurrentLoan(loan) {
     status: loan.status,
   };
 }
+/**
+ * Return loan history.
+ * @param {} loan 
+ * @returns 
+ */
+function toHistoryLoan(loan) {
+  return {
+    id: loan.id,
+    bookId: loan.book?.id || loan.bookId || null,
+    bookTitle: loan.book?.title || "This book is no longer available",
+    bookAuthor: loan.book?.author || "-",
+    checkoutDate: formatDateTime(loan.checkoutDate),
+    dueDate: formatDateTime(loan.dueDate),
+    returnDate: loan.returnDate ? formatDateTime(loan.returnDate) : null,
+    status: loan.status,
+    fineAmount: Number(loan.fineAmount),
+    finePaid: loan.finePaid,
+    fineForgiven: loan.fineForgiven,
+  };
+}
+
+async function ensureNoUnpaidFines(
+  userId,
+  message = "This book is currently unavailable, or you have unpaid fines",
+) {
+  const unpaidFineLoan = await prisma.loan.findFirst({
+    where: {
+      userId,
+      fineAmount: { gt: 0 },
+      finePaid: false,
+      fineForgiven: false,
+    },
+  });
+
+  if (unpaidFineLoan) {
+    throw new AppError(400, message);
+  }
+}
 
 async function getCurrentLoans(userId) {
+  await syncOverdueLoansForUser(userId);
+
   const loans = await prisma.loan.findMany({
     where: {
       userId,
-      status: "Borrowing",
+      status: {
+        in: ["Borrowing", "Overdue"],
+      },
     },
     include: {
       book: true,
@@ -37,6 +100,8 @@ async function getCurrentLoans(userId) {
 }
 
 async function getHistoryLoans(userId, page = 1, size = 10) {
+  await syncOverdueLoansForUser(userId);
+
   const skip = (page - 1) * size;
   
   const [loans, totalCount] = await Promise.all([
@@ -67,31 +132,7 @@ async function getHistoryLoans(userId, page = 1, size = 10) {
     page,
     size,
     totalPages,
-    list: loans.map(loan => {
-      if (!loan.book) {
-        return {
-          id: loan.id,
-          bookId: null,
-          bookTitle: "该图书已下架",
-          bookAuthor: "-",
-          checkoutDate: formatDateTime(loan.checkoutDate),
-          dueDate: formatDateTime(loan.dueDate),
-          returnDate: loan.returnDate ? formatDateTime(loan.returnDate) : null,
-          status: loan.status,
-        };
-      }
-      
-      return {
-        id: loan.id,
-        bookId: loan.bookId,
-        bookTitle: loan.book.title,
-        bookAuthor: loan.book.author,
-        checkoutDate: formatDateTime(loan.checkoutDate),
-        dueDate: formatDateTime(loan.dueDate),
-        returnDate: loan.returnDate ? formatDateTime(loan.returnDate) : null,
-        status: loan.status,
-      };
-    })
+    list: loans.map(toHistoryLoan),
   };
 }
 
@@ -101,25 +142,14 @@ async function ensureBorrowAllowed(userId, bookId) {
   });
 
   if (!book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
   if (!book.available || book.availableCopies <= 0) {
-    throw new AppError(400, "该书当前不可借或您有未缴清罚款");
+    throw new AppError(400, "This book is currently unavailable, or you have unpaid fines");
   }
 
-  const unpaidFineLoan = await prisma.loan.findFirst({
-    where: {
-      userId,
-      fineAmount: { gt: 0 },
-      finePaid: false,
-      fineForgiven: false,
-    },
-  });
-
-  if (unpaidFineLoan) {
-    throw new AppError(400, "该书当前不可借或您有未缴清罚款");
-  }
+  await ensureNoUnpaidFines(userId);
 
   return book;
 }
@@ -128,7 +158,7 @@ async function createLoan(userId, payload) {
   const { bookId } = payload || {};
 
   if (!bookId) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   const book = await ensureBorrowAllowed(userId, bookId);
@@ -173,6 +203,8 @@ async function createLoan(userId, payload) {
 }
 
 async function renewLoan(userId, loanId) {
+  await syncOverdueLoansForUser(userId);
+
   const loan = await prisma.loan.findUnique({
     where: { id: loanId },
     include: {
@@ -181,25 +213,31 @@ async function renewLoan(userId, loanId) {
   });
 
   if (!loan) {
-    throw new AppError(404, "借阅记录不存在");
+    throw new AppError(404, "Loan record not found");
   }
 
   if (loan.userId !== userId) {
-    throw new AppError(404, "借阅记录不存在或非当前用户");
+    throw new AppError(404, "Loan record not found or does not belong to the current user");
   }
 
-  if (loan.status !== "Borrowing") {
-    throw new AppError(400, "仅借阅中的图书可续借");
+  if (!["Borrowing", "Overdue"].includes(loan.status)) {
+    throw new AppError(400, "Only borrowed books can be renewed");
   }
 
   if (loan.renewalCount >= 1) {
-    throw new AppError(400, "已达续借次数上限");
+    throw new AppError(400, "Renewal limit reached");
   }
 
   const now = new Date();
-  if (loan.dueDate < now) {
-    throw new AppError(400, "已逾期的图书不可续借");
+  if (loan.status === "Overdue" || loan.dueDate < now) {
+    throw new AppError(400, "Overdue books cannot be renewed");
   }
+
+  if (loan.status !== "Borrowing") {
+    throw new AppError(400, "Only borrowed books can be renewed");
+  }
+
+  await ensureNoUnpaidFines(userId, "You have unpaid fines and cannot renew");
 
   const otherHold = await prisma.hold.findFirst({
     where: {
@@ -210,7 +248,7 @@ async function renewLoan(userId, loanId) {
   });
 
   if (otherHold) {
-    throw new AppError(400, "该书已被其他读者预约，不可续借");
+    throw new AppError(400, "This book has been reserved by another reader and cannot be renewed");
   }
 
   const newDueDate = addDays(loan.dueDate, 30);
@@ -238,26 +276,19 @@ async function returnLoan(userId, loanId) {
   });
 
   if (!loan || loan.userId !== userId) {
-    throw new AppError(404, "借阅记录不存在或非当前用户");
+    throw new AppError(404, "Loan record not found or does not belong to the current user");
   }
 
   if (loan.status === "Returned" || loan.returnDate) {
-    throw new AppError(400, "该借阅记录已归还");
+    throw new AppError(400, "This loan record has already been returned");
   }
 
   if (!loan.book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
   const now = new Date();
-  const overdueDays = loan.dueDate < now ? Math.ceil((now - loan.dueDate) / (24 * 60 * 60 * 1000)) : 0;
-
-  const fineRateConfig = await prisma.config.findUnique({
-    where: { key: "FINE_RATE_PER_DAY" },
-  });
-
-  const fineRate = fineRateConfig ? Number(fineRateConfig.value) : 0;
-  const fineAmount = overdueDays > 0 ? overdueDays * fineRate : 0;
+  const fineAmount = loan.dueDate < now ? OVERDUE_FINE_AMOUNT : 0;
 
   const updatedLoan = await prisma.$transaction(async (tx) => {
     const returnedLoan = await tx.loan.update({
@@ -296,10 +327,64 @@ async function returnLoan(userId, loanId) {
   };
 }
 
+async function payFine(userId, loanId, payload) {
+  const amountInput = payload?.amount;
+
+  return prisma.$transaction(async (tx) => {
+    const loan = await tx.loan.findUnique({
+      where: { id: loanId },
+    });
+
+    if (!loan || loan.userId !== userId) {
+      throw new AppError(404, "Loan record not found or does not belong to the current user");
+    }
+
+    const fineAmount = Number(loan.fineAmount);
+    if (fineAmount <= 0 || loan.finePaid || loan.fineForgiven) {
+      throw new AppError(400, "This loan has no payable fine, or the payment amount is insufficient");
+    }
+
+    if (amountInput !== undefined) {
+      const amount = Number(amountInput);
+      if (!Number.isFinite(amount) || amount !== fineAmount) {
+        throw new AppError(400, "This loan has no payable fine, or the payment amount is insufficient");
+      }
+    }
+
+    const updatedLoan = await tx.loan.update({
+      where: { id: loanId },
+      data: {
+        finePaid: true,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId,
+        action: "PAY_FINE",
+        entity: "Loan",
+        entityId: loanId,
+        detail: JSON.stringify({
+          amount: fineAmount,
+          method: "SIMULATED",
+        }),
+      },
+    });
+
+    return {
+      loanId: updatedLoan.id,
+      fineAmount: Number(updatedLoan.fineAmount),
+      finePaid: updatedLoan.finePaid,
+    };
+  });
+}
+
 module.exports = {
   getCurrentLoans,
   createLoan,
   getHistoryLoans,
   renewLoan,
   returnLoan,
+  payFine,
+  payFine,
 };

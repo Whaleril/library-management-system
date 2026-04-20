@@ -3,16 +3,16 @@ const { AppError } = require("../lib/errors");
 const { formatDateTime } = require("../utils/date");
 
 async function addToWishlist(userId, bookId) {
-  // 检查图书是否存在且可见
+  // Check whether the book exists and is visible.
   const book = await prisma.book.findUnique({
     where: { id: bookId },
   });
 
   if (!book) {
-    throw new AppError(404, "图书不存在");
+    throw new AppError(404, "Book not found");
   }
 
-  // 检查是否已存在心愿单记录
+  // Check whether the wishlist entry already exists.
   const existingWishlist = await prisma.wishlist.findFirst({
     where: {
       userId,
@@ -21,10 +21,10 @@ async function addToWishlist(userId, bookId) {
   });
 
   if (existingWishlist) {
-    throw new AppError(400, "该书已在心愿单中");
+    throw new AppError(400, "This book is already in the wishlist");
   }
 
-  // 创建心愿单记录
+  // Create wishlist entry.
   const wishlist = await prisma.wishlist.create({
     data: {
       userId,
@@ -55,7 +55,7 @@ async function getWishlist(userId, page = 1, size = 10) {
         book: true,
       },
       orderBy: {
-        createdAt: "desc", // 按加入时间倒序
+        createdAt: "desc", // Sort by added time in descending order.
       },
       skip,
       take: size,
@@ -92,7 +92,7 @@ async function removeFromWishlist(userId, wishlistId) {
   });
 
   if (!wishlist || wishlist.userId !== userId) {
-    throw new AppError(404, "心愿单记录不存在或非当前用户");
+    throw new AppError(404, "Wishlist record not found or does not belong to the current user");
   }
 
   await prisma.wishlist.delete({

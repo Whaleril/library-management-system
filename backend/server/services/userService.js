@@ -8,7 +8,7 @@ async function getCurrentUser(userId) {
   });
 
   if (!user) {
-    throw new AppError(404, "用户不存在");
+    throw new AppError(404, "User not found");
   }
 
   return toUserProfile(user);
@@ -18,7 +18,7 @@ async function updateCurrentUser(userId, payload) {
   const { name, studentId } = payload || {};
 
   if (name === undefined && studentId === undefined) {
-    throw new AppError(400, "参数错误");
+    throw new AppError(400, "Invalid parameters");
   }
 
   if (studentId) {
@@ -30,7 +30,7 @@ async function updateCurrentUser(userId, payload) {
     });
 
     if (existingStudent) {
-      throw new AppError(400, "该学号已被使用");
+      throw new AppError(400, "This student ID is already in use");
     }
   }
 
