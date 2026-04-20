@@ -6,6 +6,9 @@ const holdRoutes = require('./holdRoutes');
 const loanRoutes = require("./loanRoutes");
 const userRoutes = require("./userRoutes");
 const wishlistRoutes = require("./wishlistRoutes");
+const ratingRoutes = require("./ratingRoutes");  
+const acquisitionRoutes = require("./acquisitionRoutes");  
+const dashboardRoutes = require("./dashboardRoutes");      
 const ratingRoutes = require("./ratingRoutes");  // 评分路由
 const adminUserRoutes = require("./adminUserRoutes");
 const adminRoutes = require("./adminRoutes");
@@ -23,6 +26,8 @@ router.use(loanRoutes);
 router.use(userRoutes);
 router.use(wishlistRoutes);
 router.use(ratingRoutes);
+router.use(acquisitionRoutes);   
+router.use(dashboardRoutes);     
 router.use(adminUserRoutes);
 router.use(announcementRoutes);
 
