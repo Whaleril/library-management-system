@@ -256,10 +256,20 @@ async function getNewBooks(query) {
   }
   
   const skip = (page - 1) * size;
+
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  
+  const where = {
+    createdAt: {
+      gte: oneMonthAgo
+    }
+  };
   
   const [total, books] = await Promise.all([
-    prisma.book.count(),
+    prisma.book.count({ where }),
     prisma.book.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: size
