@@ -1,4 +1,5 @@
 const bookService = require("../services/bookService");
+const bookRankingService = require("../services/bookRankingService");
 const { sendSuccess } = require("../lib/response");
 
 async function listBooks(req, res, next) {
@@ -53,7 +54,7 @@ async function getNewBooks(req, res, next) {
 // Get loan ranking.
 async function getRanking(req, res, next) {
   try {
-    const data = await bookService.getRanking(req.query);
+    const data = await bookRankingService.getRanking(req.query);
     sendSuccess(res, data);
   } catch (error) {
     next(error);
