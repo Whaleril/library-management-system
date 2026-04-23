@@ -11,6 +11,7 @@ const adminUserRoutes = require("./adminUserRoutes");
 const adminRoutes = require("./adminRoutes");
 const librarianRoutes = require("./librarianRoutes");
 const adminAuditRoutes = require("./adminAuditRoutes");
+const adminConfigRoutes = require("./adminConfigRoutes");
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.use(wishlistRoutes);
 router.use(ratingRoutes);
 router.use(adminUserRoutes);
 router.use(adminAuditRoutes);
+router.use(adminConfigRoutes);
 router.use("/admin", adminRoutes);
 
 module.exports = router;
