@@ -6,7 +6,11 @@ import UserManagement from './pages/UserManagement'
 
 const PAGE_NAME = {
   [ADMIN_PAGES.OVERVIEW]: 'Overview',
-  [ADMIN_PAGES.USER_MANAGE]: 'User Manage'
+  [ADMIN_PAGES.USER_MANAGE]: 'User Manage',
+  [ADMIN_PAGES.LIBRARIAN_MANAGE]: 'Librarian Manage',
+  [ADMIN_PAGES.ROLE_PERMISSION]: 'Role Permission',
+  [ADMIN_PAGES.SYSTEM_CONFIG]: 'System Config',
+  [ADMIN_PAGES.AUDIT_LOGS]: 'Audit Logs'
 }
 
 const AdminDashboard = ({ user, handleLogout, getRoleName }) => {
@@ -46,6 +50,25 @@ const AdminDashboard = ({ user, handleLogout, getRoleName }) => {
             <span className="icon">🧩</span>
             <span>User Manage</span>
           </div>
+
+          {/* 新增 R2 要求菜单 */}
+          <div className={`menu-item ${currentPage === ADMIN_PAGES.LIBRARIAN_MANAGE ? 'active' : ''}`} onClick={() => setCurrentPage(ADMIN_PAGES.LIBRARIAN_MANAGE)}>
+            <span className="icon">👨‍💼</span>
+            <span>Librarian Manage</span>
+          </div>
+          <div className={`menu-item ${currentPage === ADMIN_PAGES.ROLE_PERMISSION ? 'active' : ''}`} onClick={() => setCurrentPage(ADMIN_PAGES.ROLE_PERMISSION)}>
+            <span className="icon">🔐</span>
+            <span>Role Permission</span>
+          </div>
+          <div className={`menu-item ${currentPage === ADMIN_PAGES.SYSTEM_CONFIG ? 'active' : ''}`} onClick={() => setCurrentPage(ADMIN_PAGES.SYSTEM_CONFIG)}>
+            <span className="icon">⚙️</span>
+            <span>System Config</span>
+          </div>
+          <div className={`menu-item ${currentPage === ADMIN_PAGES.AUDIT_LOGS ? 'active' : ''}`} onClick={() => setCurrentPage(ADMIN_PAGES.AUDIT_LOGS)}>
+            <span className="icon">📜</span>
+            <span>Audit Logs</span>
+          </div>
+
         </nav>
         <div className="user-info">
           <div className="user-avatar">{user.name?.[0]?.toUpperCase() || 'A'}</div>
