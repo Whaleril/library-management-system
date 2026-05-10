@@ -1,6 +1,8 @@
 const express = require("express");
 
+const holdController = require("../controllers/holdController");
 const librarianController = require("../controllers/librarianController");
+const loanController = require("../controllers/loanController");
 const { requireAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
 
@@ -20,5 +22,21 @@ router.put("/books/:id", librarianController.editBook);
 
 // L1.4 - Delete/Archive a book
 router.delete("/books/:id", librarianController.deleteBook);
+
+// L2.4 - Scan book by ISBN/barcode
+router.get("/books/scan", librarianController.scanBook);
+
+// L2.5 - Lookup book info from external API
+router.get("/books/lookup", librarianController.lookupBook);
+
+// L2.1/L2.2 - Loan management
+router.get("/loans", loanController.getLibrarianLoans);
+router.post("/loans/checkout", loanController.librarianCheckoutLoan);
+router.post("/loans/return", loanController.librarianReturnLoan);
+
+// L2.3 - Hold management
+router.get("/holds", holdController.getLibrarianHolds);
+router.put("/holds/:id/ready", holdController.markHoldReady);
+router.delete("/holds/:id", holdController.cancelLibrarianHold);
 
 module.exports = router;

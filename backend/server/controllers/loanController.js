@@ -10,6 +10,15 @@ async function getCurrentLoans(req, res, next) {
   }
 }
 
+async function getLibrarianLoans(req, res, next) {
+  try {
+    const data = await loanService.getLibrarianLoans(req.query);
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function createLoan(req, res, next) {
   try {
     const data = await loanService.createLoan(req.currentUser.id, req.body);
@@ -18,6 +27,16 @@ async function createLoan(req, res, next) {
     next(error);
   }
 }
+
+async function librarianCheckoutLoan(req, res, next) {
+  try {
+    const data = await loanService.librarianCheckoutLoan(req.body, req.currentUser.id);
+    sendSuccess(res, data, "Checkout successful");
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function getHistoryLoans(req, res, next) {
   try {
     const { page = 1, size = 10 } = req.query;
@@ -64,11 +83,23 @@ async function payFine(req, res, next) {
   }
 }
 
+async function librarianReturnLoan(req, res, next) {
+  try {
+    const data = await loanService.librarianReturnLoan(req.body, req.currentUser.id);
+    sendSuccess(res, data, "Return successful");
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getCurrentLoans,
+  getLibrarianLoans,
   createLoan,
+  librarianCheckoutLoan,
   getHistoryLoans,
   renewLoan,
   returnLoan,
+  librarianReturnLoan,
   payFine,
 };

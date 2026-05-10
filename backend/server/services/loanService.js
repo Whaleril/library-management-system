@@ -3,6 +3,7 @@ const { AppError } = require("../lib/errors");
 const { getLoanPolicy } = require("../config/loanPolicy");
 const { formatDateTime, addDays, overdueWholeDays } = require("../utils/date");
 const auditLogService = require("./auditLogService");
+const ACTIVE_LOAN_STATUSES = ["Borrowing", "Overdue"];
 
 async function computeOverdueFineAmount(loan, returnDate) {
   const { fineRate } = await getLoanPolicy();
@@ -11,20 +12,24 @@ async function computeOverdueFineAmount(loan, returnDate) {
   return Math.round(days * fineRate * 100) / 100;
 }
 
-async function syncOverdueLoansForUser(userId) {
+async function syncOverdueLoans(where = {}) {
   const now = new Date();
 
   await prisma.loan.updateMany({
     where: {
-      userId,
       status: "Borrowing",
       returnDate: null,
       dueDate: { lt: now },
+      ...where,
     },
     data: {
       status: "Overdue",
     },
   });
+}
+
+async function syncOverdueLoansForUser(userId) {
+  await syncOverdueLoans({ userId });
 }
 /**
  * Return current loans.
@@ -64,6 +69,24 @@ function toHistoryLoan(loan) {
   };
 }
 
+function toLibrarianLoan(loan) {
+  return {
+    id: loan.id,
+    userId: loan.userId,
+    userName: loan.user?.name || "Unknown user",
+    userEmail: loan.user?.email || "-",
+    bookId: loan.bookId,
+    bookTitle: loan.book?.title || "This book is no longer available",
+    bookAuthor: loan.book?.author || "-",
+    isbn: loan.book?.isbn || "-",
+    checkoutDate: formatDateTime(loan.checkoutDate),
+    dueDate: formatDateTime(loan.dueDate),
+    returnDate: loan.returnDate ? formatDateTime(loan.returnDate) : null,
+    status: loan.status,
+    fineAmount: Number(loan.fineAmount),
+  };
+}
+
 async function ensureNoUnpaidFines(
   userId,
   message = "This book is currently unavailable, or you have unpaid fines",
@@ -80,6 +103,185 @@ async function ensureNoUnpaidFines(
   if (unpaidFineLoan) {
     throw new AppError(400, message);
   }
+}
+
+async function ensureUserExists(userId) {
+  const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+
+  if (!normalizedUserId) {
+    throw new AppError(400, "User ID is required");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: normalizedUserId },
+  });
+
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+
+  return user;
+}
+
+async function findBookByIdentifier(payload) {
+  const bookId = typeof payload?.bookId === "string" ? payload.bookId.trim() : "";
+  const isbn = typeof payload?.isbn === "string" ? payload.isbn.trim() : "";
+  const bookIdOrIsbn =
+    typeof payload?.bookIdOrIsbn === "string" ? payload.bookIdOrIsbn.trim() : "";
+
+  if (bookId) {
+    return prisma.book.findUnique({
+      where: { id: bookId },
+    });
+  }
+
+  if (isbn) {
+    return prisma.book.findUnique({
+      where: { isbn },
+    });
+  }
+
+  if (bookIdOrIsbn) {
+    const bookById = await prisma.book.findUnique({
+      where: { id: bookIdOrIsbn },
+    });
+
+    if (bookById) {
+      return bookById;
+    }
+
+    return prisma.book.findUnique({
+      where: { isbn: bookIdOrIsbn },
+    });
+  }
+
+  return null;
+}
+
+async function ensureBorrowAllowed(
+  userId,
+  payload,
+  options = {},
+) {
+  const {
+    missingBookMessage = "Book not found",
+    unavailableMessage = "This book is currently unavailable, or you have unpaid fines",
+    unpaidFineMessage = "This book is currently unavailable, or you have unpaid fines",
+  } = options;
+
+  const book = await findBookByIdentifier(payload);
+
+  if (!book) {
+    throw new AppError(404, missingBookMessage);
+  }
+
+  if (!book.available || book.availableCopies <= 0) {
+    throw new AppError(400, unavailableMessage);
+  }
+
+  await ensureNoUnpaidFines(userId, unpaidFineMessage);
+
+  return book;
+}
+
+async function createLoanRecord({ userId, book, actorUserId, action, detail }) {
+  const checkoutDate = new Date();
+  const { maxDays } = await getLoanPolicy();
+  const dueDate = addDays(checkoutDate, maxDays);
+  const nextAvailableCopies = book.availableCopies - 1;
+
+  const loan = await prisma.$transaction(async (tx) => {
+    const createdLoan = await tx.loan.create({
+      data: {
+        userId,
+        bookId: book.id,
+        checkoutDate,
+        dueDate,
+        renewalCount: 0,
+        status: "Borrowing",
+      },
+      include: {
+        book: true,
+        user: true,
+      },
+    });
+
+    await tx.book.update({
+      where: { id: book.id },
+      data: {
+        availableCopies: nextAvailableCopies,
+        available: nextAvailableCopies > 0,
+      },
+    });
+
+    if (actorUserId && action) {
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action,
+          entity: "Loan",
+          entityId: createdLoan.id,
+          detail: detail || null,
+        },
+      });
+    }
+
+    return createdLoan;
+  });
+
+  return {
+    loan,
+    nextAvailableCopies,
+  };
+}
+
+async function finalizeLoanReturn(loan, actorUserId, action, detail) {
+  const now = new Date();
+  const fineAmount = loan.dueDate < now ? OVERDUE_FINE_AMOUNT : 0;
+  const nextAvailableCopies = loan.book.availableCopies + 1;
+
+  const updatedLoan = await prisma.$transaction(async (tx) => {
+    const returnedLoan = await tx.loan.update({
+      where: { id: loan.id },
+      data: {
+        returnDate: now,
+        status: "Returned",
+        fineAmount,
+        finePaid: fineAmount === 0,
+      },
+      include: {
+        book: true,
+        user: true,
+      },
+    });
+
+    await tx.book.update({
+      where: { id: loan.bookId },
+      data: {
+        availableCopies: nextAvailableCopies,
+        available: true,
+      },
+    });
+
+    if (actorUserId && action) {
+      await tx.auditLog.create({
+        data: {
+          userId: actorUserId,
+          action,
+          entity: "Loan",
+          entityId: loan.id,
+          detail: detail || null,
+        },
+      });
+    }
+
+    return returnedLoan;
+  });
+
+  return {
+    loan: updatedLoan,
+    nextAvailableCopies,
+  };
 }
 
 async function getCurrentLoans(userId) {
@@ -142,49 +344,30 @@ async function getHistoryLoans(userId, page = 1, size = 10) {
   };
 }
 
-async function ensureBorrowAllowed(userId, bookId) {
-  const book = await prisma.book.findUnique({
-    where: { id: bookId },
-  });
+async function getLibrarianLoans(query = {}) {
+  await syncOverdueLoans();
 
-  if (!book) {
-    throw new AppError(404, "Book not found");
+  const page = Number(query.page || 1);
+  const size = Number(query.size || 50);
+  const status = typeof query.status === "string" ? query.status.trim() : "";
+  const keyword = typeof query.keyword === "string" ? query.keyword.trim() : "";
+
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(size) || size < 1) {
+    throw new AppError(400, "Invalid pagination parameters");
   }
 
   if (!book.available || book.availableCopies <= 0) {
     throw new AppError(400, "This book is currently unavailable, or you have unpaid fines");
   }
 
-  const existingActiveLoan = await prisma.loan.findFirst({
-    where: {
-      userId,
-      bookId,
-      status: { in: ['Borrowing', 'Overdue'] }
-    }
-  });
-
-  if (existingActiveLoan) {
-    throw new AppError(400, "You already have an active loan for this book");
-  }
-
   await ensureNoUnpaidFines(userId);
 
-  const { maxBooks } = await getLoanPolicy();
-  const activeCount = await prisma.loan.count({
-    where: {
-      userId,
-      status: { in: ["Borrowing", "Overdue"] },
-    },
-  });
-
-  if (activeCount >= maxBooks) {
-    throw new AppError(
-      400,
-      `You have reached the borrowing limit (${maxBooks} books). Please return some books before borrowing more.`,
-    );
-  }
-
-  return book;
+  return {
+    total,
+    page,
+    size,
+    list: loans.map(toLibrarianLoan),
+  };
 }
 
 async function createLoan(userId, payload) {
@@ -194,37 +377,10 @@ async function createLoan(userId, payload) {
     throw new AppError(400, "Invalid parameters");
   }
 
-  const book = await ensureBorrowAllowed(userId, bookId);
-  const checkoutDate = new Date();
-  const { maxDays } = await getLoanPolicy();
-  const dueDate = addDays(checkoutDate, maxDays);
-
-  const loan = await prisma.$transaction(async (tx) => {
-    const createdLoan = await tx.loan.create({
-      data: {
-        userId,
-        bookId: book.id,
-        checkoutDate,
-        dueDate,
-        renewalCount: 0,
-        status: "Borrowing",
-      },
-      include: {
-        book: true,
-      },
-    });
-
-    const nextAvailableCopies = book.availableCopies - 1;
-
-    await tx.book.update({
-      where: { id: book.id },
-      data: {
-        availableCopies: nextAvailableCopies,
-        available: nextAvailableCopies > 0,
-      },
-    });
-
-    return createdLoan;
+  const book = await ensureBorrowAllowed(userId, { bookId });
+  const { loan, nextAvailableCopies } = await createLoanRecord({
+    userId,
+    book,
   });
 
   return {
@@ -233,6 +389,44 @@ async function createLoan(userId, payload) {
     bookTitle: loan.book.title,
     checkoutDate: formatDateTime(loan.checkoutDate),
     dueDate: formatDateTime(loan.dueDate),
+    availableCopies: nextAvailableCopies,
+  };
+}
+
+async function librarianCheckoutLoan(payload, actorUserId) {
+  const borrower = await ensureUserExists(payload?.userId);
+  const book = await ensureBorrowAllowed(
+    borrower.id,
+    payload,
+    {
+      missingBookMessage: "Book not found",
+      unavailableMessage: "Book is not available for checkout",
+      unpaidFineMessage: "User has unpaid fines",
+    },
+  );
+
+  const { loan, nextAvailableCopies } = await createLoanRecord({
+    userId: borrower.id,
+    book,
+    actorUserId,
+    action: "LIBRARIAN_CHECKOUT",
+    detail: JSON.stringify({
+      borrowerId: borrower.id,
+      bookId: book.id,
+      bookIdentifier: payload?.bookId || payload?.isbn || payload?.bookIdOrIsbn || book.id,
+    }),
+  });
+
+  return {
+    loanId: loan.id,
+    userId: borrower.id,
+    userName: borrower.name,
+    bookId: loan.bookId,
+    bookTitle: loan.book.title,
+    isbn: loan.book.isbn,
+    checkoutDate: formatDateTime(loan.checkoutDate),
+    dueDate: formatDateTime(loan.dueDate),
+    availableCopies: nextAvailableCopies,
   };
 }
 
@@ -307,6 +501,7 @@ async function returnLoan(userId, loanId) {
     where: { id: loanId },
     include: {
       book: true,
+      user: true,
     },
   });
 
@@ -359,6 +554,57 @@ async function returnLoan(userId, loanId) {
     returnDate: formatDateTime(updatedLoan.returnDate),
     status: updatedLoan.status,
     fineAmount: Number(updatedLoan.fineAmount),
+    availableCopies: nextAvailableCopies,
+  };
+}
+
+async function librarianReturnLoan(payload, actorUserId) {
+  const loanId = typeof payload?.loanId === "string" ? payload.loanId.trim() : "";
+
+  if (!loanId) {
+    throw new AppError(400, "Loan record ID is required");
+  }
+
+  const loan = await prisma.loan.findUnique({
+    where: { id: loanId },
+    include: {
+      book: true,
+      user: true,
+    },
+  });
+
+  if (!loan) {
+    throw new AppError(404, "Loan record not found");
+  }
+
+  if (loan.status === "Returned" || loan.returnDate) {
+    throw new AppError(400, "This loan record has already been returned");
+  }
+
+  if (!loan.book) {
+    throw new AppError(404, "Book not found");
+  }
+
+  const { loan: updatedLoan, nextAvailableCopies } = await finalizeLoanReturn(
+    loan,
+    actorUserId,
+    "LIBRARIAN_RETURN",
+    JSON.stringify({
+      borrowerId: loan.userId,
+      bookId: loan.bookId,
+    }),
+  );
+
+  return {
+    loanId: updatedLoan.id,
+    userId: updatedLoan.userId,
+    userName: updatedLoan.user?.name || "Unknown user",
+    bookId: updatedLoan.bookId,
+    bookTitle: updatedLoan.book.title,
+    returnDate: formatDateTime(updatedLoan.returnDate),
+    status: updatedLoan.status,
+    fineAmount: Number(updatedLoan.fineAmount),
+    availableCopies: nextAvailableCopies,
   };
 }
 
@@ -410,7 +656,10 @@ module.exports = {
   getCurrentLoans,
   createLoan,
   getHistoryLoans,
+  getLibrarianLoans,
+  librarianCheckoutLoan,
   renewLoan,
   returnLoan,
+  librarianReturnLoan,
   payFine,
 };
