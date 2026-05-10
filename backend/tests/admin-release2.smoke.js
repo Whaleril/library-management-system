@@ -9,9 +9,13 @@ let adminToken;
 let studentToken;
 let adminUserId;
 const createdUserIds = [];
+const createdBookIds = [];
 const uniqueSuffix = Date.now();
 
 const studentEmail = `admin.r2.student.${uniqueSuffix}@example.com`;
+const bookIsbnPrefix = `R2-${uniqueSuffix}`;
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, options);
@@ -30,6 +34,41 @@ async function loginByEmail(email, password) {
   });
 }
 
+function formatDateTime(date) {
+  const pad = (num) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
+    date.getMinutes(),
+  )}:${pad(date.getSeconds())}`;
+}
+
+function parseDateTime(value) {
+  if (!value || typeof value !== "string" || !value.includes(" ")) {
+    return null;
+  }
+
+  const [datePart, timePart] = value.split(" ");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute, second] = timePart.split(":").map(Number);
+
+  return new Date(year, month - 1, day, hour, minute, second);
+}
+
+async function createBook(token, payload) {
+  const result = await request("/api/librarian/books", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  assert.equal(result.response.status, 200);
+  assert.ok(result.body.data.id);
+  createdBookIds.push(result.body.data.id);
+  return result.body.data;
+}
+
 async function cleanup() {
   if (createdUserIds.length) {
     await prisma.loan.deleteMany({
@@ -44,6 +83,16 @@ async function cleanup() {
       where: {
         id: {
           in: createdUserIds,
+        },
+      },
+    });
+  }
+
+  if (createdBookIds.length) {
+    await prisma.book.deleteMany({
+      where: {
+        id: {
+          in: createdBookIds,
         },
       },
     });
@@ -107,13 +156,13 @@ async function main() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      maxBorrowDays: 45,
-      maxBorrowBooks: 10,
+      maxBorrowDays: 2,
+      maxBorrowBooks: 2,
     }),
   });
   assert.equal(updateBorrowRulesByAdmin.response.status, 200);
-  assert.equal(updateBorrowRulesByAdmin.body.data.borrowRules.maxBorrowDays, 45);
-  assert.equal(updateBorrowRulesByAdmin.body.data.borrowRules.maxBorrowBooks, 10);
+  assert.equal(updateBorrowRulesByAdmin.body.data.borrowRules.maxBorrowDays, 2);
+  assert.equal(updateBorrowRulesByAdmin.body.data.borrowRules.maxBorrowBooks, 2);
 
   const updateBorrowRulesInvalid = await request("/api/admin/config/borrow-rules", {
     method: "PUT",
@@ -159,8 +208,8 @@ async function main() {
     },
   });
   assert.equal(getConfigAfterUpdates.response.status, 200);
-  assert.equal(getConfigAfterUpdates.body.data.borrowRules.maxBorrowDays, 45);
-  assert.equal(getConfigAfterUpdates.body.data.borrowRules.maxBorrowBooks, 10);
+  assert.equal(getConfigAfterUpdates.body.data.borrowRules.maxBorrowDays, 2);
+  assert.equal(getConfigAfterUpdates.body.data.borrowRules.maxBorrowBooks, 2);
   assert.equal(getConfigAfterUpdates.body.data.fineRules.dailyFineRate, 1.25);
 
   const configForbiddenByStudent = await request("/api/admin/config", {
@@ -182,8 +231,102 @@ async function main() {
   });
   assert.equal(fineRateUpdateForbiddenByStudent.response.status, 403);
 
-  const fromTime = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const toTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const auditLogsForbiddenByStudent = await request("/api/admin/audit-logs?page=1&size=10", {
+    headers: {
+      Authorization: `Bearer ${studentToken}`,
+    },
+  });
+  assert.equal(auditLogsForbiddenByStudent.response.status, 403);
+
+  const book1 = await createBook(adminToken, {
+    title: "R2 Smoke Book 1",
+    author: "Smoke Author",
+    isbn: `${bookIsbnPrefix}-1`,
+    genre: "Technology",
+    language: "English",
+    availableCopies: 1,
+  });
+
+  const book2 = await createBook(adminToken, {
+    title: "R2 Smoke Book 2",
+    author: "Smoke Author",
+    isbn: `${bookIsbnPrefix}-2`,
+    genre: "Technology",
+    language: "English",
+    availableCopies: 1,
+  });
+
+  const book3 = await createBook(adminToken, {
+    title: "R2 Smoke Book 3",
+    author: "Smoke Author",
+    isbn: `${bookIsbnPrefix}-3`,
+    genre: "Technology",
+    language: "English",
+    availableCopies: 1,
+  });
+
+  const loanStartTime = Date.now();
+
+  const createLoan1 = await request("/api/loans", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${studentToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      bookId: book1.id,
+    }),
+  });
+  assert.equal(createLoan1.response.status, 200);
+  const dueDate1 = parseDateTime(createLoan1.body.data.dueDate);
+  assert.ok(dueDate1 instanceof Date);
+  assert.ok(!Number.isNaN(dueDate1.getTime()));
+  const loan1DiffDays = (dueDate1.getTime() - loanStartTime) / ONE_DAY_MS;
+  assert.ok(loan1DiffDays >= 1.7 && loan1DiffDays <= 2.3);
+
+  const createLoan2 = await request("/api/loans", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${studentToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      bookId: book2.id,
+    }),
+  });
+  assert.equal(createLoan2.response.status, 200);
+
+  const createLoanExceed = await request("/api/loans", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${studentToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      bookId: book3.id,
+    }),
+  });
+  assert.equal(createLoanExceed.response.status, 400);
+  assert.equal(createLoanExceed.body.message, "You have reached the borrowing limit (2 books). Please return some books before borrowing more.");
+
+  const loanIdForFine = createLoan1.body.data.loanId;
+  const overdueDueDate = new Date(Date.now() - 2 * ONE_DAY_MS + 1000);
+  await prisma.loan.update({
+    where: { id: loanIdForFine },
+    data: { dueDate: overdueDueDate },
+  });
+
+  const returnOverdueLoan = await request(`/api/loans/${loanIdForFine}/return`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${studentToken}`,
+    },
+  });
+  assert.equal(returnOverdueLoan.response.status, 200);
+  assert.ok(Math.abs(returnOverdueLoan.body.data.fineAmount - 2.5) < 1e-6);
+
+  const fromTime = formatDateTime(new Date(Date.now() - 60 * 60 * 1000));
+  const toTime = formatDateTime(new Date(Date.now() + 60 * 60 * 1000));
   const listAuditLogs = await request(
     `/api/admin/audit-logs?page=1&size=20&operatorId=${adminUserId}&entity=Config&from=${encodeURIComponent(fromTime)}&to=${encodeURIComponent(toTime)}`,
     {
