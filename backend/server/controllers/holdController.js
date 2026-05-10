@@ -34,9 +34,39 @@ async function cancelHold(req, res, next) {
     try {
         const holdId = req.params.id;
 
-        await holdService.cancelHold(req.currentUser.id, holdId);
+        const data = await holdService.cancelHold(req.currentUser.id, holdId);
 
-        sendSuccess(res, null, "Reservation cancelled");
+        sendSuccess(res, data, "Reservation cancelled");
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function getLibrarianHolds(req, res, next) {
+    try {
+        const data = await holdService.getLibrarianHolds(req.query);
+
+        sendSuccess(res, data, "Operation successful");
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function markHoldReady(req, res, next) {
+    try {
+        const data = await holdService.markHoldReady(req.params.id, req.currentUser.id);
+
+        sendSuccess(res, data, "Reservation marked as ready");
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function cancelLibrarianHold(req, res, next) {
+    try {
+        const data = await holdService.cancelLibrarianHold(req.params.id, req.currentUser.id);
+
+        sendSuccess(res, data, "Reservation cancelled");
     } catch (error) {
         next(error);
     }
@@ -45,5 +75,8 @@ async function cancelHold(req, res, next) {
 module.exports = {
     createHold,
     getHolds,
-    cancelHold
+    cancelHold,
+    getLibrarianHolds,
+    markHoldReady,
+    cancelLibrarianHold
 };

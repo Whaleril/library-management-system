@@ -70,6 +70,19 @@ async function getRanking(req, res, next) {
   }
 }
 
+async function scrapeBookByISBN(req, res, next) {
+  try {
+    const { isbn } = req.query;
+    if (!isbn) {
+      return res.status(400).json({ success: false, message: "Missing ISBN parameter" });
+    }
+    const data = await scraperService.scrapeKongfzByISBN(isbn);
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listBooks,
   searchBooks,
@@ -77,5 +90,6 @@ module.exports = {
   getBookByBarcode,
   getBooksWithFilters,  
   getNewBooks,          
-  getRanking            
+  getRanking,
+  scrapeBookByISBN      
 };

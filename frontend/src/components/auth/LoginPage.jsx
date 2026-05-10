@@ -220,15 +220,6 @@ function LoginPage({ onLoginSuccess }) {
             <p>Already have an account? <button className="toggle-btn" onClick={() => { setIsLogin(true); setError('') }}>Back to Login</button></p>
           )}
         </div>
-
-        {isLogin && (
-          <div className="test-accounts">
-            <strong>Test Accounts:</strong>
-            <div>👨‍💼 Admin: admin@library.com / admin123</div>
-            <div>📚 Librarian: librarian@library.com / lib123</div>
-            <div>🎓 Student: student1@library.com / student123</div>
-          </div>
-        )}
       </div>
     </div>
   )

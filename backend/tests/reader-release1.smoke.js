@@ -266,13 +266,25 @@ async function main() {
   assert.equal(returnResult.body.message, "Return successful");
   assert.equal(returnResult.body.data.status, "Returned");
   assert.equal(returnResult.body.data.bookId, testBookId);
-  assert.equal(returnResult.body.data.fineAmount, 0);
+  assert.equal(returnResult.body.data.fineAmount, 5);
 
   const returnedBook = await prisma.book.findUnique({
     where: { id: testBookId },
   });
   assert.equal(returnedBook.availableCopies, 1);
   assert.equal(returnedBook.available, true);
+
+  const firstFinePayResult = await request(`/api/loans/${loanId}/pay-fine`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  assert.equal(firstFinePayResult.response.status, 200);
+  assert.equal(firstFinePayResult.body.data.loanId, loanId);
+  assert.equal(firstFinePayResult.body.data.fineAmount, 5);
+  assert.equal(firstFinePayResult.body.data.finePaid, true);
 
   const fineBorrowResult = await request("/api/loans", {
     method: "POST",

@@ -15,11 +15,13 @@ CREATE TABLE "Book" (
     "title" TEXT NOT NULL,
     "author" TEXT NOT NULL,
     "isbn" TEXT NOT NULL,
-    "genre" TEXT,
+    "genre" TEXT NOT NULL,
+    "cover" TEXT,
     "description" TEXT,
-    "language" TEXT,
+    "language" TEXT NOT NULL,
     "shelfLocation" TEXT,
     "available" BOOLEAN NOT NULL DEFAULT true,
+    "availableCopies" INTEGER NOT NULL DEFAULT 1,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -34,6 +36,8 @@ CREATE TABLE "Loan" (
     "fineAmount" DECIMAL NOT NULL DEFAULT 0,
     "finePaid" BOOLEAN NOT NULL DEFAULT false,
     "fineForgiven" BOOLEAN NOT NULL DEFAULT false,
+    "renewalCount" INTEGER NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'Borrowing',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Loan_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "Book" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Loan_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -57,6 +61,8 @@ CREATE TABLE "Hold" (
     "userId" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'WAITING',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "readyAt" DATETIME,
+    "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "Hold_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "Book" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Hold_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -88,6 +94,28 @@ CREATE TABLE "AuditLog" (
     "detail" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Announcement" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "publishedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "AcquisitionRequest" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "author" TEXT NOT NULL,
+    "isbn" TEXT,
+    "reason" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "AcquisitionRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -143,6 +171,9 @@ CREATE INDEX "Wishlist_bookId_idx" ON "Wishlist"("bookId");
 
 -- CreateIndex
 CREATE INDEX "Wishlist_userId_idx" ON "Wishlist"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Wishlist_userId_bookId_key" ON "Wishlist"("userId", "bookId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Config_key_key" ON "Config"("key");
