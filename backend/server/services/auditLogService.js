@@ -20,6 +20,25 @@ function buildWhereClause(query) {
         where.userId = query.operatorId;
     }
 
+    if (query.operator) {
+        const keyword = String(query.operator).trim();
+        if (keyword) {
+            where.OR = [
+                { userId: { contains: keyword } },
+                {
+                    user: {
+                        is: {
+                            OR: [
+                                { name: { contains: keyword } },
+                                { email: { contains: keyword } }
+                            ]
+                        }
+                    }
+                }
+            ];
+        }
+    }
+
     if (query.action) {
         where.action = query.action;
     }

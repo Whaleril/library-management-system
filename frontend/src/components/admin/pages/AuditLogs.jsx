@@ -197,7 +197,7 @@ const AuditLogs = () => {
   }, [setQueryPart])
 
   const handleReset = useCallback(() => {
-    setQueryPart({ operatorId: '', action: '', entity: '', from: '', to: '', page: 1 })
+    setQueryPart({ operator: '', action: '', entity: '', from: '', to: '', page: 1 })
   }, [setQueryPart])
 
   return (
@@ -210,14 +210,18 @@ const AuditLogs = () => {
       </div>
 
       <div className="search-section audit-filter-panel">
+        <div className="audit-filter-title-row">
+          <h3>Filter Controls</h3>
+          <span>Use keyword + category filters to narrow the timeline</span>
+        </div>
         <div className="search-form audit-search-form">
-          <div className="search-field audit-field">
-            <label className="search-label">Operator ID</label>
+          <div className="search-field audit-field audit-field-operator">
+            <label className="search-label">Operator Search</label>
             <input
               className="search-input"
-              placeholder="Enter operator id"
-              value={query.operatorId}
-              onChange={(e) => handleFilterChange('operatorId', e.target.value)}
+              placeholder="Search by operator name, email, or id"
+              value={query.operator}
+              onChange={(e) => handleFilterChange('operator', e.target.value)}
             />
           </div>
 

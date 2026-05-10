@@ -5,7 +5,7 @@ export default function useAuditLogs(initialQuery = {}) {
     const [query, setQuery] = useState({
         page: 1,
         size: 10,
-        operatorId: '',
+        operator: '',
         action: '',
         entity: '',
         from: '',
